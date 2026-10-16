@@ -46,6 +46,12 @@
   #rotitems .rot { display: grid; grid-template-columns: 1fr 110px; align-items: center; gap: 12px; }
   #rotitems .secs { display: flex; align-items: center; gap: 6px; }
   #rotitems input[type=number] { width: 100%; }
+  #scenes { display: grid; gap: 6px; }
+  #scenes .scene { display: flex; align-items: center; gap: 8px; }
+  #scenes .scene span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #scenes .scene small { color: var(--muted); }
+  #scenes button { padding: 5px 10px; }
+  #scname { flex: 1; min-width: 0; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 </style>
 </head>
 <body>
@@ -79,6 +85,16 @@
     </div>
   </form>
 
+  <h2>Saved scenes</h2>
+  <form id="scf">
+    <div id="scenes"></div>
+    <div class="buttons">
+      <input type="text" id="scname" maxlength="40" placeholder="Name" aria-label="Scene name" autocomplete="off">
+      <button type="submit">Save what's showing</button>
+    </div>
+    <p class="hint" style="margin:0">Saves whatever is on the panel now (text, a planet, a rotation…) to show again later. Saving with an existing name replaces it.</p>
+  </form>
+
   <h2>Prayer times</h2>
   <form id="pf">
     <div class="row">
@@ -102,6 +118,7 @@
       <button type="submit">Show prayer times</button>
       <button type="button" id="locate">Use my location</button>
     </div>
+    <p class="hint" id="lochint" style="margin:0"></p>
   </form>
 
   <h2>Planets</h2>
@@ -298,10 +315,40 @@ $("pf").addEventListener("submit", e => {
     method: $("method").value, clock24: $("clock24").checked,
   });
 });
-$("locate").addEventListener("click", () => {
-  navigator.geolocation.getCurrentPosition(
-    p => { $("lat").value = p.coords.latitude.toFixed(4); $("long").value = p.coords.longitude.toFixed(4); },
-    err => alert("Couldn't get location: " + err.message));
+function setLocation(lat, long) {
+  $("lat").value = Number(lat).toFixed(4); $("long").value = Number(long).toFixed(4);
+  $("lat").dispatchEvent(new Event("change"));
+}
+// Browsers only share precise location with HTTPS pages (or localhost), and
+// this page is usually plain HTTP on the LAN. Otherwise look up the city from
+// the public IP address, which is close enough for prayer times.
+async function locateByIP() {
+  for (const [url, get] of [
+    ["https://get.geojs.io/v1/ip/geo.json", j => [j.latitude, j.longitude, j.city]],
+    ["https://ipwho.is/", j => j.success && [j.latitude, j.longitude, j.city]],
+  ]) {
+    try {
+      const r = await fetch(url);
+      const loc = r.ok && get(await r.json());
+      if (loc && loc[0] != null) return loc;
+    } catch {}
+  }
+  throw new Error("couldn't look up a location from your IP address");
+}
+$("locate").addEventListener("click", async () => {
+  if (window.isSecureContext && navigator.geolocation) {
+    const pos = await new Promise(ok => navigator.geolocation.getCurrentPosition(ok, () => ok(null), { timeout: 10000 }));
+    if (pos) { setLocation(pos.coords.latitude, pos.coords.longitude); $("lochint").textContent = ""; return; }
+  }
+  $("lochint").textContent = "Finding your approximate location…";
+  try {
+    const [lat, long, city] = await locateByIP();
+    setLocation(lat, long);
+    $("lochint").textContent = `Approximate location from your IP address${city ? ` (near ${city})` : ""}. Check it, or type exact coordinates.`;
+  } catch (err) {
+    $("lochint").textContent = "";
+    alert("Couldn't get location: " + err.message + ". Enter the latitude and longitude yourself.");
+  }
 });
 $("clear").addEventListener("click", () => call("/api/clear", {}));
 $("brightness").addEventListener("change", () => call("/api/brightness", { brightness: Number($("brightness").value) }));
@@ -488,6 +535,51 @@ function loadSpec(s) {
   if (s.solarsystem) { $("sspeed").value = String(s.solarsystem.speed || 0); $("slabel").checked = s.solarsystem.label; }
 }
 
+// --- Saved scenes ---
+const modeNames = { text: "text", prayer: "prayer times", planet: "planet", pokemon: "Pokémon", moon: "moon phase",
+  solarsystem: "solar system", minecraft: "Minecraft", starfront: "Starfront", bytes: "$BYTES", citizen: "Citizen",
+  rotation: "rotation", image: "image" };
+function drawScenes(list) {
+  if (!list) return;
+  const box = $("scenes");
+  box.replaceChildren();
+  if (!list.length) { box.innerHTML = `<p class="hint" style="margin:0">No saved scenes yet.</p>`; return; }
+  for (const sc of list) {
+    const row = document.createElement("div");
+    row.className = "scene";
+    const name = document.createElement("span");
+    name.textContent = sc.name + " ";
+    const kind = document.createElement("small");
+    kind.textContent = sc.mode === "text" ? `“${sc.text.text.replace(/\s+/g, " ")}”` : modeNames[sc.mode] || sc.mode;
+    name.append(kind);
+    const show = document.createElement("button");
+    show.type = "button"; show.textContent = "Show";
+    show.addEventListener("click", async () => {
+      const s = await call(`/api/scenes/${encodeURIComponent(sc.name)}/show`, {});
+      if (s) fillForms(s);
+    });
+    const del = document.createElement("button");
+    del.type = "button"; del.textContent = "Delete";
+    del.addEventListener("click", async () => {
+      if (!confirm(`Delete “${sc.name}”?`)) return;
+      const r = await fetch(`/api/scenes/${encodeURIComponent(sc.name)}`, { method: "DELETE" });
+      if (r.ok) drawScenes(await r.json()); else alert(await r.text());
+    });
+    row.append(name, show, del);
+    box.append(row);
+  }
+}
+$("scf").addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = $("scname").value.trim();
+  if (!name) { alert("Give the scene a name."); return; }
+  const r = await fetch("/api/scenes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+  if (!r.ok) { alert(await r.text()); return; }
+  $("scname").value = "";
+  drawScenes(await r.json());
+});
+fetch("/api/scenes").then(r => r.json()).then(drawScenes);
+
 // --- Connect 4 ---
 let c4 = null;
 for (let i = 0; i < 42; i++) $("c4board").append(document.createElement("div"));
@@ -540,9 +632,8 @@ setInterval(async () => {
   else { c4 = null; $("c4status").textContent = "No game on the panel. Start one above."; }
 }, 400);
 
-call("/api/state").then(s => {
-  if (!s) return;
-  $("brightness").value = s.brightness;
+// Fill the forms from what the panel shows.
+function fillForms(s) {
   loadSpec(s);
   showMC(s); showRoofs(s); showNT(s);
   if (s.rotation) {
@@ -553,6 +644,11 @@ call("/api/state").then(s => {
       $(`rotsec-${it.mode}`).value = it.seconds;
     }
   }
+}
+call("/api/state").then(s => {
+  if (!s) return;
+  $("brightness").value = s.brightness || 0;
+  fillForms(s);
 });
 setInterval(() => call("/api/state").then(s => { showMC(s); showRoofs(s); showNT(s); }), 2000);
 </script>

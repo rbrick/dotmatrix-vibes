@@ -67,6 +67,17 @@ Emoji: text can contain emoji characters (❤️ 🔥 ⭐ 😎 👾 😂 💩 �
 
 **State is saved.** After every change, `matrixd` writes what the panel shows (text, prayer clock, planet, rotation, game or image) and the brightness to `~/.config/matrixd/state.json`, and restores it on the next start. Passing `-text`, `-prayer` or `-rotate` overrides the saved state for that start; `-state other.json` uses a different file and `-state ''` turns saving off.
 
+### Saved scenes
+
+Save whatever the panel is showing (text with its colours and scrolling, a planet, a rotation, an image…) under a name, and show it again later from the control page's **Saved scenes** section. Scenes are kept in the state file, so they survive restarts. Showing a scene leaves the brightness as it is. Saving under an existing name replaces that scene. Connect 4 games can't be saved as scenes.
+
+```bash
+curl -d '{"name":"Welcome"}' localhost:8080/api/scenes        # save what's showing now
+curl localhost:8080/api/scenes                                 # list them
+curl -X POST localhost:8080/api/scenes/Welcome/show            # show one again
+curl -X DELETE localhost:8080/api/scenes/Welcome
+```
+
 ### Prayer times
 
 Shows the current time with a time-of-day emoji (🌙 night, 🌅 Fajr to sunrise, ☀ day, 🌤 after Asr, 🌇 after Maghrib), then the next prayer, its time and a countdown. The calculation is `go/prayer` (imported from [this gist](https://gist.github.com/rbrick/e971ac3fbe69240da74aeb6cd3e68681)); the display is `go/prayerclock`.
