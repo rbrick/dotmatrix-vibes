@@ -1,0 +1,15 @@
+[Unit]
+Description=matrixd LED matrix server (Raspberry Pi backend)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Runs as root so matrix-pi can use hardware pulses and realtime priority;
+# rpi-rgb-led-matrix drops to the daemon user after setting up the GPIO.
+ExecStart=/usr/local/bin/matrixd -port pi -addr :8080 -state /var/lib/matrixd/state.json
+StateDirectory=matrixd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
