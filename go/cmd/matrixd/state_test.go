@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -249,5 +250,88 @@ func TestCitizenRequestDefaults(t *testing.T) {
 	}
 	if err := json.Unmarshal([]byte(`{"zoom":false,"label":false}`), &r); err != nil || r.Zoom || r.Label {
 		t.Errorf("%+v %v", r, err)
+	}
+}
+
+func TestSavedScenes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	state := &stateFile{path: path}
+	player := newPlayer(t)
+	persist := func() {
+		if err := state.save(snapshot(player)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mux := http.NewServeMux()
+	handleScenes(mux, player, state, func(*connect4.Game) {}, persist)
+	do := func(method, target, body string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(method, target, strings.NewReader(body)))
+		return w
+	}
+
+	player.SetBrightness(40)
+	player.ShowText(matrix.Text{Text: "WELCOME", Color: color.RGBA{0, 255, 0, 255}})
+	if w := do("POST", "/api/scenes", `{"name":" Welcome "}`); w.Code != http.StatusOK {
+		t.Fatalf("save: %d %s", w.Code, w.Body)
+	}
+	player.Show(moonphase.New(false))
+	if w := do("POST", "/api/scenes", `{"name":"Moon"}`); w.Code != http.StatusOK {
+		t.Fatalf("save moon: %d %s", w.Code, w.Body)
+	}
+	for _, body := range []string{`{"name":""}`, `{"name":"a/b"}`, `{"name":"` + strings.Repeat("x", 41) + `"}`, `nope`} {
+		if w := do("POST", "/api/scenes", body); w.Code != http.StatusBadRequest {
+			t.Errorf("save %s: %d, want 400", body, w.Code)
+		}
+	}
+
+	// Saving the current display keeps the scenes, and they survive a restart.
+	persist()
+	reloaded := &stateFile{path: path}
+	if _, err := reloaded.load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.sceneList(); len(got) != 2 || got[0].Name != "Welcome" || got[0].Text.Text != "WELCOME" || got[1].Mode != "moon" {
+		t.Fatalf("reloaded scenes: %+v", got)
+	}
+
+	player.SetBrightness(90)
+	w := do("POST", "/api/scenes/Welcome/show", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("show: %d %s", w.Code, w.Body)
+	}
+	if s := player.State(); s.Brightness != 90 {
+		t.Errorf("brightness after show = %d, want 90 (unchanged)", s.Brightness)
+	}
+	if spec, _ := specOf(player.State().Scene); spec.Text == nil || spec.Text.Text != "WELCOME" || spec.Text.Color != "#00ff00" {
+		t.Errorf("shown scene: %+v", spec.Text)
+	}
+	if w := do("POST", "/api/scenes/Nope/show", ""); w.Code != http.StatusNotFound {
+		t.Errorf("show missing: %d", w.Code)
+	}
+
+	// Saving under an existing name replaces that scene in place.
+	if w := do("POST", "/api/scenes", `{"name":"Moon"}`); w.Code != http.StatusOK {
+		t.Fatal(w.Body)
+	}
+	if got := state.sceneList(); len(got) != 2 || got[1].Name != "Moon" || got[1].Mode != "text" {
+		t.Errorf("after replacing: %+v", got)
+	}
+
+	if w := do("DELETE", "/api/scenes/Moon", ""); w.Code != http.StatusOK {
+		t.Fatalf("delete: %d", w.Code)
+	}
+	if w := do("DELETE", "/api/scenes/Moon", ""); w.Code != http.StatusNotFound {
+		t.Errorf("delete again: %d", w.Code)
+	}
+	var listed []savedScene
+	json.Unmarshal(do("GET", "/api/scenes", "").Body.Bytes(), &listed)
+	if len(listed) != 1 || listed[0].Name != "Welcome" {
+		t.Errorf("listed: %+v", listed)
+	}
+
+	player.Show(connect4.New(connect4.Options{}))
+	if w := do("POST", "/api/scenes", `{"name":"Game"}`); w.Code != http.StatusConflict {
+		t.Errorf("saving a game: %d, want 409", w.Code)
 	}
 }

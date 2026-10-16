@@ -54,6 +54,11 @@
 //	                      "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes" or "citizen") with
 //	                      the same
 //	                      settings as that mode's endpoint
+//	GET    /api/scenes             saved scenes: [{"name":"Welcome","mode":"text",...}, ...]
+//	POST   /api/scenes             {"name":"Welcome"} saves what the panel shows now under
+//	                               that name, replacing any scene with the same name
+//	POST   /api/scenes/{name}/show shows a saved scene; brightness stays as it is
+//	DELETE /api/scenes/{name}
 //
 // Text may contain emoji characters or :shortcodes: such as :heart:,
 // Pokémon box sprites as :pikachu: or :shiny-pikachu:, and Poké Balls as
@@ -61,7 +66,8 @@
 //
 // What the panel shows and its brightness are saved to a state file (by
 // default ~/.config/matrixd/state.json) after every change and restored at
-// startup, unless -text, -prayer or -rotate says what to show.
+// startup, unless -text, -prayer or -rotate says what to show. The saved
+// scenes are kept in the same file.
 package main
 
 import (
@@ -395,6 +401,7 @@ func main() {
 	})
 
 	handleConnect4(mux, player, attachGame, persist)
+	handleScenes(mux, player, state, attachGame, persist)
 	mux.HandleFunc("POST /api/pokemon", func(w http.ResponseWriter, r *http.Request) {
 		var req pokemonRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody)).Decode(&req); err != nil {
