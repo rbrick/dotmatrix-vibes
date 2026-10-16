@@ -1,0 +1,97 @@
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineSystem.cmake:12 (find_program)"
+      - "CMakeLists.txt:16 (project)"
+    mode: "program"
+    variable: "CMAKE_UNAME"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "uname"
+    candidate_directories:
+      - "/home/ryan/.pi/agent/bin/"
+      - "/home/ryan/.railway/bin/"
+      - "/home/ryan/.local/share/pi-node/node-v22.22.3-linux-x64/bin/"
+      - "/home/ryan/.opencode/bin/"
+      - "/home/ryan/.bun/bin/"
+      - "/home/ryan/.wasmtime/bin/"
+      - "/home/ryan/.nvm/versions/node/v20.19.6/bin/"
+      - "/home/ryan/.local/share/pnpm/"
+      - "/home/linuxbrew/.linuxbrew/bin/"
+      - "/home/linuxbrew/.linuxbrew/sbin/"
+      - "/home/ryan/.cargo/bin/"
+      - "/usr/local/bin/"
+      - "/usr/bin/"
+      - "/usr/local/sbin/"
+      - "/usr/sbin/"
+      - "/home/ryan/.foundry/bin/"
+      - "/home/ryan/.rindexer/bin/"
+      - "/var/lib/snapd/snap/bin/"
+      - "/home/ryan/.dotnet/"
+      - "/home/ryan/.dotnet/tools/"
+      - "/home/ryan/.local/bin/"
+      - "/home/ryan/go/bin/"
+      - "/home/ryan/Android/Sdk/emulator/"
+      - "/home/ryan/Android/Sdk/platform-tools/"
+      - "/bin/"
+    searched_directories:
+      - "/home/ryan/.pi/agent/bin/uname"
+      - "/home/ryan/.railway/bin/uname"
+      - "/home/ryan/.local/share/pi-node/node-v22.22.3-linux-x64/bin/uname"
+      - "/home/ryan/.opencode/bin/uname"
+      - "/home/ryan/.bun/bin/uname"
+      - "/home/ryan/.wasmtime/bin/uname"
+      - "/home/ryan/.nvm/versions/node/v20.19.6/bin/uname"
+      - "/home/ryan/.local/share/pnpm/uname"
+      - "/home/linuxbrew/.linuxbrew/bin/uname"
+      - "/home/linuxbrew/.linuxbrew/sbin/uname"
+      - "/home/ryan/.cargo/bin/uname"
+      - "/usr/local/bin/uname"
+    found: "/usr/bin/uname"
+    search_context:
+      ENV{PATH}:
+        - "/home/ryan/.pi/agent/bin"
+        - "/home/ryan/.railway/bin"
+        - "/home/ryan/.local/share/pi-node/node-v22.22.3-linux-x64/bin"
+        - "/home/ryan/.opencode/bin"
+        - "/home/ryan/.bun/bin"
+        - "/home/ryan/.wasmtime/bin"
+        - "/home/ryan/.nvm/versions/node/v20.19.6/bin"
+        - "/home/ryan/.local/share/pnpm"
+        - "/home/linuxbrew/.linuxbrew/bin"
+        - "/home/linuxbrew/.linuxbrew/sbin"
+        - "/home/ryan/.cargo/bin"
+        - "/usr/local/bin"
+        - "/usr/bin"
+        - "/usr/local/sbin"
+        - "/usr/sbin"
+        - "/home/ryan/.foundry/bin"
+        - "/home/ryan/.rindexer/bin"
+        - "/var/lib/snapd/snap/bin"
+        - "/home/ryan/.foundry/bin"
+        - "/home/ryan/.rindexer/bin"
+        - "/home/ryan/.dotnet"
+        - "/home/ryan/.dotnet/tools"
+        - "/home/ryan/.local/bin"
+        - "/home/ryan/go/bin"
+        - "/home/ryan/Android/Sdk/emulator"
+        - "/home/ryan/Android/Sdk/platform-tools"
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineSystem.cmake:212 (message)"
+      - "CMakeLists.txt:16 (project)"
+    message: |
+      The system is: Linux - 7.1.4-204.fc44.x86_64 - x86_64
+...

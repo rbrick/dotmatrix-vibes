@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LED Matrix</title>
+<style>
+  :root { --bg: #f6f6f4; --card: #fff; --fg: #1d1d1b; --muted: #6b6b66; --line: #ddddd8; --accent: #d9480f; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --card: #20201e; --fg: #ececea; --muted: #9a9a94; --line: #34342f; --accent: #ff7a3d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  #status { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+  #status.ok::before { content: "● "; color: #2f9e44; }
+  #status.bad::before { content: "● "; color: #e03131; }
+  form { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  textarea, select, input[type=number] { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  textarea { font-family: ui-monospace, monospace; resize: vertical; min-height: 80px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
+  input[type=color] { width: 100%; height: 38px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); padding: 2px; }
+  .buttons { display: flex; gap: 8px; }
+  button { font: inherit; border: 0; border-radius: 6px; padding: 9px 16px; cursor: pointer; }
+  button[type=submit] { background: var(--accent); color: #fff; font-weight: 600; }
+  button[type=button] { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+  #emoji { display: flex; flex-wrap: wrap; gap: 4px; }
+  #emoji button { padding: 4px 6px; font-size: 18px; line-height: 1; }
+  #balls { display: flex; flex-wrap: wrap; gap: 4px; }
+  #balls button { padding: 2px; line-height: 0; background: transparent; border: 1px solid var(--line); }
+  #balls img { width: 32px; height: 32px; image-rendering: pixelated; }
+  h2 { font-size: 16px; margin: 24px 0 8px; }
+  .check { display: flex; align-items: center; gap: 6px; color: var(--fg); }
+  #c4 { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+  #c4board { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; background: #0b3fb5; padding: 8px; border-radius: 8px; cursor: pointer; }
+  #c4board div { aspect-ratio: 1; border-radius: 50%; background: #0d0d0c; }
+  #c4board div.red { background: #e53935; }
+  #c4board div.yellow { background: #fbc02d; }
+  #c4board div.win { outline: 3px solid #fff; }
+  #c4board div.cursor { box-shadow: inset 0 0 0 3px rgba(255,255,255,.35); }
+  #c4status { font-weight: 600; min-height: 1.4em; }
+  .hint { color: var(--muted); font-size: 12px; }
+  #rotitems { display: grid; gap: 8px; }
+  #rotitems .rot { display: grid; grid-template-columns: 1fr 110px; align-items: center; gap: 12px; }
+  #rotitems .secs { display: flex; align-items: center; gap: 6px; }
+  #rotitems input[type=number] { width: 100%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>LED Matrix</h1>
+  <p id="status">connecting…</p>
+  <form id="f">
+    <label>Text (up to 4 lines)
+      <textarea id="text" maxlength="500"></textarea>
+    </label>
+    <div id="emoji" aria-label="Insert emoji"></div>
+    <div id="balls" aria-label="Insert a Poké Ball"></div>
+    <p class="hint">Pokémon work too: <code>:pikachu:</code>, <code>:shiny-gyarados:</code>.</p>
+    <div class="row">
+      <label>Colour <input type="color" id="color" value="#ffffff"></label>
+      <label>Background <input type="color" id="background" value="#000000"></label>
+    </div>
+    <div class="row">
+      <label>Scroll
+        <select id="scroll"><option>auto</option><option>always</option><option>never</option></select>
+      </label>
+      <label>Align
+        <select id="align"><option>center</option><option>left</option><option>right</option></select>
+      </label>
+      <label>Speed (px/s) <input type="number" id="speed" min="1" max="200" value="24"></label>
+    </div>
+    <label>Brightness <input type="range" id="brightness" min="0" max="255"></label>
+    <div class="buttons">
+      <button type="submit">Show</button>
+      <button type="button" id="clear">Clear</button>
+    </div>
+  </form>
+
+  <h2>Prayer times</h2>
+  <form id="pf">
+    <div class="row">
+      <label>Latitude <input type="number" id="lat" step="any" min="-90" max="90" required></label>
+      <label>Longitude <input type="number" id="long" step="any" min="-180" max="180" required></label>
+    </div>
+    <div class="row">
+      <label>Method
+        <select id="method">
+          <option value="ISNA">ISNA (North America)</option>
+          <option value="MWL">Muslim World League</option>
+          <option value="EGAS">Egyptian General Authority</option>
+          <option value="Karachi">Karachi</option>
+          <option value="UAE">Dubai (UAE)</option>
+          <option value="Kuwait">Kuwait</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="clock24"> 24-hour clock</label>
+    </div>
+    <div class="buttons">
+      <button type="submit">Show prayer times</button>
+      <button type="button" id="locate">Use my location</button>
+    </div>
+  </form>
+
+  <h2>Planets</h2>
+  <form id="plf">
+    <div class="row">
+      <label>Show
+        <select id="plbody">
+          <option value="tour">Tour of the solar system</option>
+          <option value="sun">Sun</option><option value="mercury">Mercury</option><option value="venus">Venus</option>
+          <option value="earth">Earth</option><option value="moon">Moon</option><option value="mars">Mars</option>
+          <option value="jupiter">Jupiter</option><option value="saturn" selected>Saturn</option><option value="uranus">Uranus</option>
+          <option value="neptune">Neptune</option><option value="pluto">Pluto</option>
+        </select>
+      </label>
+      <label>Spin speed <input type="number" id="plspeed" min="0.1" max="10" step="0.1" value="1"></label>
+      <label class="check"><input type="checkbox" id="pllabel" checked> Show name</label>
+    </div>
+    <div class="buttons"><button type="submit">Show planet</button></div>
+  </form>
+
+  <h2>Pokémon</h2>
+  <form id="pkf">
+    <div class="row">
+      <label>Name or number
+        <input type="text" id="pkname" list="pklist" placeholder="pikachu or 25" autocomplete="off"
+          style="font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px;">
+        <datalist id="pklist"></datalist>
+      </label>
+      <label class="check"><input type="checkbox" id="pkshiny"> Shiny ✨</label>
+      <label class="check"><input type="checkbox" id="pklabel" checked> Show name</label>
+    </div>
+    <div class="buttons">
+      <button type="submit">Show Pokémon</button>
+      <button type="button" id="pkrandom">Random (new one every 10s)</button>
+    </div>
+  </form>
+
+  <h2>Solar system</h2>
+  <form id="sf">
+    <p class="hint" style="margin:0">Every planet where it is right now. Directions are exact; distances are squeezed to fit.</p>
+    <div class="row">
+      <label>Time
+        <select id="sspeed">
+          <option value="0">Now (live)</option>
+          <option value="1">Time-lapse: 1 day/s</option>
+          <option value="7">Time-lapse: 1 week/s</option>
+          <option value="30">Time-lapse: 1 month/s</option>
+          <option value="365">Time-lapse: 1 year/s</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="slabel" checked> Name each planet in turn</label>
+    </div>
+    <div class="buttons"><button type="submit">Show solar system</button></div>
+  </form>
+
+  <h2>Minecraft server</h2>
+  <form id="mcf">
+    <div class="row">
+      <label>Address
+        <input type="text" id="mcaddr" placeholder="mc.hypixel.net or host:25565" autocomplete="off" required
+          style="font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px;">
+      </label>
+      <label>Picture
+        <select id="mcicon"><option value="grass">Grass block</option><option value="server">Server's icon</option></select>
+      </label>
+      <label>Update
+        <select id="mcrefresh">
+          <option value="2">Every 2 s</option><option value="5" selected>Every 5 s</option>
+          <option value="10">Every 10 s</option><option value="30">Every 30 s</option>
+        </select>
+      </label>
+    </div>
+    <div class="buttons"><button type="submit">Show server</button></div>
+    <p class="hint" id="mcstatus" style="margin:0"></p>
+  </form>
+
+  <h2>Starfront roofs</h2>
+  <form id="sff">
+    <div class="row">
+      <label>Building
+        <select id="sfbuilding"><option value="0">All (majority)</option></select>
+      </label>
+      <label>Update
+        <select id="sfrefresh">
+          <option value="5">Every 5 s</option><option value="15" selected>Every 15 s</option>
+          <option value="30">Every 30 s</option><option value="60">Every minute</option>
+        </select>
+      </label>
+    </div>
+    <div class="buttons"><button type="submit">Show roof status</button></div>
+    <p class="hint" id="sfstatus" style="margin:0"></p>
+  </form>
+
+  <h2>Neo Tokyo</h2>
+  <form id="btf">
+    <div class="row">
+      <label>$BYTES price update
+        <select id="btrefresh">
+          <option value="10">Every 10 s</option><option value="30" selected>Every 30 s</option>
+          <option value="60">Every minute</option><option value="300">Every 5 min</option>
+        </select>
+      </label>
+    </div>
+    <div class="buttons"><button type="submit">Show $BYTES price</button></div>
+    <p class="hint" id="btstatus" style="margin:0"></p>
+  </form>
+  <form id="ctf" style="margin-top: 12px">
+    <div class="row">
+      <label>Citizen number
+        <input type="number" id="ctid" min="1" step="1" placeholder="2648" style="font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px;">
+      </label>
+      <label>Season
+        <select id="ctseason"><option value="1">Season 1</option><option value="2">Season 2</option><option value="0">Either (random only)</option></select>
+      </label>
+      <label class="check"><input type="checkbox" id="ctzoom" checked> Zoom in on the face</label>
+      <label class="check"><input type="checkbox" id="ctlabel" checked> Show number</label>
+    </div>
+    <div class="buttons">
+      <button type="submit">Show Citizen</button>
+      <button type="button" id="ctrandom">Random (new one every 20s)</button>
+    </div>
+    <p class="hint" id="ctstatus" style="margin:0"></p>
+  </form>
+
+  <h2>Moon phase</h2>
+  <form id="mf">
+    <label class="check"><input type="checkbox" id="msouth"> Southern hemisphere (waxing Moon lit on the left)</label>
+    <div class="buttons"><button type="submit">Show moon phase</button></div>
+  </form>
+
+  <h2>Rotation</h2>
+  <form id="rf">
+    <p class="hint" style="margin:0">Takes turns showing the ticked views, using each one's settings from its section above.</p>
+    <div id="rotitems"></div>
+    <div class="buttons"><button type="submit">Start rotation</button></div>
+  </form>
+
+  <h2>Connect 4</h2>
+  <section id="c4">
+    <div class="row">
+      <label>Opponent
+        <select id="c4mode"><option value="cpu">Computer</option><option value="2p">Two players</option></select>
+      </label>
+      <label>Difficulty
+        <select id="c4diff"><option>easy</option><option selected>normal</option><option>hard</option></select>
+      </label>
+      <label class="check"><input type="checkbox" id="c4cpufirst"> Computer goes first</label>
+    </div>
+    <div class="buttons"><button type="button" id="c4new" style="background:var(--accent);color:#fff;font-weight:600">New game</button></div>
+    <div id="c4status"></div>
+    <div id="c4board" aria-label="Board: click a column to drop a disc"></div>
+    <p class="hint">Click a column, or use ← → and Enter / Space / ↓.</p>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+
+function render(s) {
+  $("status").className = s.connected ? "ok" : "bad";
+  $("status").textContent = s.connected ? `connected on ${s.port}` : `not connected${s.error ? ": " + s.error : ""}`;
+  return s;
+}
+
+async function call(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) { alert(await r.text()); return; }
+  return render(await r.json());
+}
+
+$("f").addEventListener("submit", e => {
+  e.preventDefault();
+  call("/api/text", {
+    text: $("text").value, color: $("color").value, background: $("background").value,
+    scroll: $("scroll").value, align: $("align").value, speed: Number($("speed").value),
+  });
+});
+$("plf").addEventListener("submit", e => {
+  e.preventDefault();
+  call("/api/planet", { body: $("plbody").value, speed: Number($("plspeed").value), label: $("pllabel").checked });
+});
+$("pkf").addEventListener("submit", e => {
+  e.preventDefault();
+  call("/api/pokemon", { pokemon: $("pkname").value, shiny: $("pkshiny").checked, label: $("pklabel").checked });
+});
+$("pkrandom").addEventListener("click", () =>
+  call("/api/pokemon", { pokemon: "random", shiny: $("pkshiny").checked, label: $("pklabel").checked }));
+fetch("/api/pokemon/list").then(r => r.json()).then(list => {
+  for (const p of list) $("pklist").append(new Option(`#${p.dex}`, p.name));
+});
+$("pf").addEventListener("submit", e => {
+  e.preventDefault();
+  call("/api/prayer", {
+    lat: Number($("lat").value), long: Number($("long").value),
+    method: $("method").value, clock24: $("clock24").checked,
+  });
+});
+$("locate").addEventListener("click", () => {
+  navigator.geolocation.getCurrentPosition(
+    p => { $("lat").value = p.coords.latitude.toFixed(4); $("long").value = p.coords.longitude.toFixed(4); },
+    err => alert("Couldn't get location: " + err.message));
+});
+$("clear").addEventListener("click", () => call("/api/clear", {}));
+$("brightness").addEventListener("change", () => call("/api/brightness", { brightness: Number($("brightness").value) }));
+
+function insertAtCursor(str) {
+  const t = $("text"), at = t.selectionStart;
+  t.setRangeText(str, at, t.selectionEnd, "end");
+  t.focus();
+}
+
+fetch("/api/pokemon/balls").then(r => r.json()).then(list => {
+  for (const b of list) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.title = `${b.name} :${b.shortcode}:`;
+    const img = new Image();
+    img.src = `/api/pokemon/balls/${b.shortcode}.png`;
+    img.alt = b.name;
+    img.loading = "lazy";
+    btn.append(img);
+    btn.addEventListener("click", () => insertAtCursor(`:${b.shortcode}:`));
+    $("balls").append(btn);
+  }
+});
+
+fetch("/api/emoji").then(r => r.json()).then(list => {
+  for (const e of list) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = e.char;
+    b.title = `:${e.name}:`;
+    b.addEventListener("click", () => insertAtCursor(e.char));
+    $("emoji").append(b);
+  }
+});
+
+// --- Moon and rotation ---
+$("sf").addEventListener("submit", e => {
+  e.preventDefault();
+  call("/api/solarsystem", { speed: Number($("sspeed").value), label: $("slabel").checked });
+});
+$("mcf").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("mcstatus").textContent = "Pinging…";
+  showMC(await call("/api/minecraft", { address: $("mcaddr").value, icon: $("mcicon").value, refresh: Number($("mcrefresh").value) }));
+});
+function showMC(s) {
+  const st = s && s.minecraftStatus;
+  if (!s || s.mode !== "minecraft") { if (s) $("mcstatus").textContent = ""; return; }
+  $("mcstatus").textContent = !st ? "Pinging…" :
+    st.online ? `Online: ${st.players}/${st.max} players, ${Math.round(st.latencyMs)} ms, ${st.version}` +
+      (st.motd ? ` — ${st.motd.replace(/\s+/g, " ").trim()}` : "") :
+    `Offline: ${st.error}`;
+}
+$("sff").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("sfstatus").textContent = "Checking…";
+  showRoofs(await call("/api/starfront", { building: Number($("sfbuilding").value), refresh: Number($("sfrefresh").value) }));
+});
+function showRoofs(s) {
+  const st = s && s.starfrontStatus;
+  if (!s || s.mode !== "starfront") { if (s) $("sfstatus").textContent = ""; return; }
+  if (!st) { $("sfstatus").textContent = "Checking…"; return; }
+  const open = st.roofs.filter(r => r.is_open).map(r => r.device_number);
+  $("sfstatus").textContent = (st.error ? `Can't reach Starfront (${st.error}); last reading: ` : "") +
+    (open.length ? `Open: building ${open.join(", ")} (${open.length} of ${st.roofs.length})` : `All ${st.roofs.length} roofs closed`);
+}
+fetch("/api/starfront/roofs").then(r => r.ok ? r.json() : []).then(roofs => {
+  const sel = $("sfbuilding"), want = sel.dataset.want;
+  for (const r of roofs) sel.append(new Option(r.name, r.device_number));
+  if (want) sel.value = want;
+}).catch(() => {});
+$("btf").addEventListener("submit", async e => {
+  e.preventDefault();
+  showNT(await call("/api/bytes", { refresh: Number($("btrefresh").value) }));
+});
+const citizenSpec = (random, dwell = 20) => ({
+  season: Number($("ctseason").value) || (random ? 0 : 1), id: random ? 0 : Number($("ctid").value),
+  zoom: $("ctzoom").checked, label: $("ctlabel").checked, dwell,
+});
+async function showCitizen(random) {
+  if (!random && !(Number($("ctid").value) > 0)) { alert("Enter a Citizen number."); return; }
+  $("ctstatus").textContent = "Loading… (a new Citizen takes a few seconds to render)";
+  const s = await call("/api/citizen", citizenSpec(random));
+  $("ctstatus").textContent = "";
+  showNT(s);
+}
+$("ctf").addEventListener("submit", e => { e.preventDefault(); showCitizen(false); });
+$("ctrandom").addEventListener("click", () => showCitizen(true));
+function showNT(s) {
+  if (!s) return;
+  const p = s.bytesPrice;
+  $("btstatus").textContent = s.mode !== "bytes" ? "" : !p ? "Checking…" :
+    (p.usd ? `$${p.usd.toFixed(4)} · ${p.eth.toPrecision(3)} ETH · market cap $${Math.round(p.marketCap).toLocaleString()}` : "") +
+    (p.error ? ` (can't reach the price API: ${p.error})` : "");
+  if (s.mode === "citizen" && s.citizenShown) $("ctstatus").textContent = `Showing Season ${s.citizenShown.season} Citizen #${s.citizenShown.id}`;
+  else if (s.mode !== "citizen" && $("ctstatus").textContent.startsWith("Showing")) $("ctstatus").textContent = "";
+}
+$("mf").addEventListener("submit", e => {
+  e.preventDefault();
+  call("/api/moon", { south: $("msouth").checked });
+});
+$("lat").addEventListener("change", () => { if ($("lat").value !== "") $("msouth").checked = Number($("lat").value) < 0; });
+
+// Each view builds its settings from the form above at the time it's started.
+const views = [
+  { mode: "prayer", label: "Prayer times", seconds: 180, on: true, spec: () => {
+      if ($("lat").value === "" || $("long").value === "") throw "Set a latitude and longitude under Prayer times first.";
+      return { lat: Number($("lat").value), long: Number($("long").value), method: $("method").value, clock24: $("clock24").checked };
+    } },
+  // The tour moves on one planet per turn when its dwell matches the view's time.
+  { mode: "planet", label: "Planet", seconds: 20, on: true, spec: secs =>
+      ({ body: $("plbody").value, speed: Number($("plspeed").value), label: $("pllabel").checked, dwell: secs }) },
+  { mode: "moon", label: "Moon phase", seconds: 20, on: true, spec: () => ({ south: $("msouth").checked }) },
+  { mode: "minecraft", label: "Minecraft server", seconds: 20, on: false, spec: () => {
+      if (!$("mcaddr").value.trim()) throw "Enter a server address under Minecraft server first.";
+      return { address: $("mcaddr").value, icon: $("mcicon").value, refresh: Number($("mcrefresh").value) };
+    } },
+  { mode: "starfront", label: "Starfront roofs", seconds: 20, on: false, spec: () =>
+      ({ building: Number($("sfbuilding").value), refresh: Number($("sfrefresh").value) }) },
+  { mode: "bytes", label: "$BYTES price", seconds: 15, on: false, spec: () => ({ refresh: Number($("btrefresh").value) }) },
+  { mode: "citizen", label: "Neo Tokyo Citizen (random if no number)", seconds: 20, on: false, spec: secs =>
+      citizenSpec(!(Number($("ctid").value) > 0), secs) },
+  { mode: "solarsystem", label: "Solar system", seconds: 30, on: false, spec: () =>
+      ({ speed: Number($("sspeed").value), label: $("slabel").checked }) },
+  { mode: "pokemon", label: "Pokémon (random if no name)", seconds: 20, on: false, spec: secs =>
+      ({ pokemon: $("pkname").value || "random", shiny: $("pkshiny").checked, label: $("pklabel").checked, dwell: secs }) },
+  { mode: "text", label: "Text", seconds: 20, on: false, spec: () => ({
+      text: $("text").value, color: $("color").value, background: $("background").value,
+      scroll: $("scroll").value, align: $("align").value, speed: Number($("speed").value) }) },
+];
+for (const v of views) {
+  const row = document.createElement("div");
+  row.className = "rot";
+  row.innerHTML = `<label class="check"><input type="checkbox" id="rot-${v.mode}"> ${v.label}</label>
+    <label class="secs"><input type="number" id="rotsec-${v.mode}" min="1" max="86400" step="1" aria-label="${v.label} seconds"> s</label>`;
+  $("rotitems").append(row);
+  $(`rot-${v.mode}`).checked = v.on;
+  $(`rotsec-${v.mode}`).value = v.seconds;
+}
+$("rf").addEventListener("submit", e => {
+  e.preventDefault();
+  const items = [];
+  try {
+    for (const v of views) {
+      if (!$(`rot-${v.mode}`).checked) continue;
+      const seconds = Number($(`rotsec-${v.mode}`).value);
+      items.push({ mode: v.mode, seconds, [v.mode]: v.spec(seconds) });
+    }
+  } catch (err) { alert(err); return; }
+  if (!items.length) { alert("Tick at least one view."); return; }
+  call("/api/rotation", { items });
+});
+
+// Fill the forms from a saved view (on its own or as part of a rotation).
+function loadSpec(s) {
+  if (s.text) for (const k of ["text", "color", "background", "scroll", "align", "speed"]) $(k).value = s.text[k];
+  if (s.pokemon) {
+    if (s.pokemon.pokemon !== "random") $("pkname").value = s.pokemon.pokemon;
+    $("pkshiny").checked = s.pokemon.shiny; $("pklabel").checked = s.pokemon.label;
+  }
+  if (s.planet) {
+    $("plbody").value = s.planet.body; $("plspeed").value = s.planet.speed; $("pllabel").checked = s.planet.label;
+  }
+  if (s.prayer) {
+    for (const k of ["lat", "long", "method"]) $(k).value = s.prayer[k];
+    $("clock24").checked = s.prayer.clock24;
+  }
+  if (s.moon) $("msouth").checked = s.moon.south;
+  if (s.minecraft) {
+    $("mcaddr").value = s.minecraft.address; $("mcicon").value = s.minecraft.icon || "grass";
+    $("mcrefresh").value = String(s.minecraft.refresh || 5);
+  }
+  if (s.starfront) {
+    const b = String(s.starfront.building || 0);
+    $("sfbuilding").dataset.want = b; $("sfbuilding").value = b;
+    $("sfrefresh").value = String(s.starfront.refresh || 15);
+  }
+  if (s.bytes) $("btrefresh").value = String(s.bytes.refresh || 30);
+  if (s.citizen) {
+    $("ctid").value = s.citizen.id || ""; $("ctseason").value = String(s.citizen.season || 0);
+    $("ctzoom").checked = s.citizen.zoom; $("ctlabel").checked = s.citizen.label;
+  }
+  if (s.solarsystem) { $("sspeed").value = String(s.solarsystem.speed || 0); $("slabel").checked = s.solarsystem.label; }
+}
+
+// --- Connect 4 ---
+let c4 = null;
+for (let i = 0; i < 42; i++) $("c4board").append(document.createElement("div"));
+
+function drawC4(g) {
+  c4 = g;
+  const cells = $("c4board").children;
+  const win = new Set((g.winLine || []).map(([r, c]) => r * 7 + c));
+  g.board.forEach((row, r) => row.forEach((d, c) => {
+    const el = cells[r * 7 + c];
+    el.className = [d, win.has(r * 7 + c) ? "win" : "", c === g.cursor ? "cursor" : ""].join(" ");
+  }));
+  const name = d => g.vsComputer ? (d === "red" ? "You" : "Computer") : (d === "red" ? "Red" : "Yellow");
+  const score = `${g.score.red}–${g.score.yellow}`;
+  $("c4status").textContent =
+    g.winner ? `${name(g.winner)} ${g.vsComputer && g.winner === "red" ? "win" : "wins"}! (${score})` :
+    g.draw ? `Draw (${score})` :
+    g.thinking ? `Computer is thinking… (${score})` : `${name(g.turn)} to play (${score})`;
+}
+
+async function c4call(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.ok) drawC4(await r.json());
+  else if (r.status !== 409) alert(await r.text());
+}
+
+$("c4new").addEventListener("click", e => {
+  e.currentTarget.blur(); // so Space/Enter afterwards drop a disc instead of restarting
+  c4call("/api/connect4/new", {
+    vsComputer: $("c4mode").value === "cpu", difficulty: $("c4diff").value, cpuFirst: $("c4cpufirst").checked,
+  });
+});
+$("c4board").addEventListener("click", e => {
+  const i = [...$("c4board").children].indexOf(e.target);
+  if (i >= 0 && c4) c4call("/api/connect4/move", { column: i % 7 });
+});
+document.addEventListener("keydown", e => {
+  if (!c4 || e.target.closest("input, textarea, select") || e.metaKey || e.ctrlKey) return;
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    c4call("/api/connect4/cursor", { delta: e.key === "ArrowLeft" ? -1 : 1 });
+  } else if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
+    c4call("/api/connect4/move", {});
+  } else return;
+  e.preventDefault();
+});
+// Pick up computer moves and changes made elsewhere.
+setInterval(async () => {
+  const r = await fetch("/api/connect4");
+  if (r.ok) drawC4(await r.json());
+  else { c4 = null; $("c4status").textContent = "No game on the panel. Start one above."; }
+}, 400);
+
+call("/api/state").then(s => {
+  if (!s) return;
+  $("brightness").value = s.brightness;
+  loadSpec(s);
+  showMC(s); showRoofs(s); showNT(s);
+  if (s.rotation) {
+    for (const v of views) $(`rot-${v.mode}`).checked = false;
+    for (const it of s.rotation.items) {
+      loadSpec(it);
+      $(`rot-${it.mode}`).checked = true;
+      $(`rotsec-${it.mode}`).value = it.seconds;
+    }
+  }
+});
+setInterval(() => call("/api/state").then(s => { showMC(s); showRoofs(s); showNT(s); }), 2000);
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/ryan/HardwareProjects/dotmatrix/build-rp2040/pioasm/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

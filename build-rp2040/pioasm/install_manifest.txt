@@ -1,0 +1,5 @@
+/home/ryan/HardwareProjects/dotmatrix/build-rp2040/pioasm-install/pioasm/pioasm
+/home/ryan/HardwareProjects/dotmatrix/build-rp2040/pioasm-install/pioasm/pioasmTargets.cmake
+/home/ryan/HardwareProjects/dotmatrix/build-rp2040/pioasm-install/pioasm/pioasmTargets-release.cmake
+/home/ryan/HardwareProjects/dotmatrix/build-rp2040/pioasm-install/pioasm/pioasmConfig.cmake
+/home/ryan/HardwareProjects/dotmatrix/build-rp2040/pioasm-install/pioasm/pioasmConfigVersion.cmake

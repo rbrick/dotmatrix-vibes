@@ -1,0 +1,83 @@
+; HUB75 PIO driver, adapted from raspberrypi/pico-examples (BSD-3-Clause).
+.pio_version 0
+
+.program hub75_row
+.side_set 2
+.wrap_target
+    out pins, 4 [7]    side 0x2 ; blank display and select A-D row
+    out x, 28   [7]    side 0x3 ; pulse LAT and load display time
+pulse_loop:
+    jmp x-- pulse_loop side 0x0 ; enable LEDs for x+1 cycles
+.wrap
+
+% c-sdk {
+static inline void hub75_row_program_init(PIO pio, uint sm, uint offset,
+        uint row_base_pin, uint latch_pin) {
+    pio_sm_set_consecutive_pindirs(pio, sm, row_base_pin, 4, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, latch_pin, 2, true);
+    for (uint i = row_base_pin; i < row_base_pin + 4; ++i) pio_gpio_init(pio, i);
+    pio_gpio_init(pio, latch_pin);
+    pio_gpio_init(pio, latch_pin + 1);
+    pio_sm_config c = hub75_row_program_get_default_config(offset);
+    sm_config_set_out_pins(&c, row_base_pin, 4);
+    sm_config_set_sideset_pins(&c, latch_pin);
+    sm_config_set_out_shift(&c, true, true, 32);
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+static inline void hub75_wait_tx_stall(PIO pio, uint sm) {
+    uint32_t mask = 1u << (PIO_FDEBUG_TXSTALL_LSB + sm);
+    pio->fdebug = mask;
+    while (!(pio->fdebug & mask)) tight_loop_contents();
+}
+%}
+
+.program hub75_data_rgb888
+.side_set 1
+public entry_point:
+.wrap_target
+public shift0:
+    pull             side 0
+    in osr, 1        side 0
+    out null, 7      side 0
+    in osr, 1        side 0
+    out null, 7      side 0
+    in osr, 1        side 0
+    out null, 7      side 0
+public shift1:
+    pull             side 0
+    in osr, 1        side 1
+    out null, 7      side 1
+    in osr, 1        side 1
+    out null, 7      side 1
+    in osr, 1        side 1
+    out null, 7      side 1
+    in null, 26      side 1
+    mov pins, ::isr  side 1
+.wrap
+
+% c-sdk {
+static inline void hub75_data_rgb888_program_init(PIO pio, uint sm, uint offset,
+        uint rgb_base_pin, uint clock_pin) {
+    pio_sm_set_consecutive_pindirs(pio, sm, rgb_base_pin, 6, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, clock_pin, 1, true);
+    for (uint i = rgb_base_pin; i < rgb_base_pin + 6; ++i) pio_gpio_init(pio, i);
+    pio_gpio_init(pio, clock_pin);
+    pio_sm_config c = hub75_data_rgb888_program_get_default_config(offset);
+    sm_config_set_out_pins(&c, rgb_base_pin, 6);
+    sm_config_set_sideset_pins(&c, clock_pin);
+    // Each explicit pull loads one 24-bit RGB pixel; autopull would skip pixels.
+    sm_config_set_out_shift(&c, true, false, 24);
+    sm_config_set_in_shift(&c, false, false, 32);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_exec(pio, sm, offset + hub75_data_rgb888_offset_entry_point);
+    pio_sm_set_enabled(pio, sm, true);
+}
+static inline void hub75_data_rgb888_set_shift(PIO pio, uint sm, uint offset, uint shift) {
+    uint16_t instruction = shift == 0 ? pio_encode_pull(false, true)
+                                      : pio_encode_out(pio_null, shift);
+    pio->instr_mem[offset + hub75_data_rgb888_offset_shift0] = instruction;
+    pio->instr_mem[offset + hub75_data_rgb888_offset_shift1] = instruction;
+}
+%}

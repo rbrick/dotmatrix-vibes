@@ -1,0 +1,6 @@
+/home/ryan/HardwareProjects/dotmatrix/build-pico2w/_deps/picotool/picotool
+/home/ryan/HardwareProjects/dotmatrix/build-pico2w/_deps/picotool/picotoolTargets.cmake
+/home/ryan/HardwareProjects/dotmatrix/build-pico2w/_deps/picotool/picotoolTargets-release.cmake
+/home/ryan/HardwareProjects/dotmatrix/build-pico2w/_deps/picotool/picotoolConfig.cmake
+/home/ryan/HardwareProjects/dotmatrix/build-pico2w/_deps/picotool/picotoolConfigVersion.cmake
+/home/ryan/HardwareProjects/dotmatrix/build-pico2w/_deps/picotool/enc_bootloader.elf
