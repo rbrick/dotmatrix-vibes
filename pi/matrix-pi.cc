@@ -53,8 +53,8 @@ int main(int argc, char **argv) {
   matrix->SetBrightness(50);
   FrameCanvas *canvas = matrix->CreateFrameCanvas();
   while (true) {
-    const int command = getchar();
-    if (command == EOF) break;
+    uint8_t command;
+    if (!read_exact(&command, 1)) break;
     if (command == 'P') {
       fputs("PICO-MATRIX 1 64 32\n", stdout); // Keep the established protocol.
     } else if (command == 'F') {
