@@ -159,34 +159,51 @@ func (g *Game) Render(c *matrix.Canvas, _ time.Duration) time.Duration {
 		g.last = now
 	}
 	c.Clear()
-	ox := 15
+
+	// Match Connect 4's layout: status is confined to the left and the entire
+	// playfield is confined to the right. A 3x2 pitch fits all 10x16 cells in
+	// 30x32 pixels without any text touching the board.
+	const boardX = 34
+	empty := color.RGBA{4, 12, 28, 255}
+	divider := color.RGBA{25, 55, 90, 255}
+	for y := 0; y < matrix.Height; y++ {
+		c.Set(boardX-2, y, divider)
+	}
 	for y := 0; y < 16; y++ {
 		for x := 0; x < 10; x++ {
+			col := empty
 			if v := g.board[y][x]; v > 0 {
-				block(c, ox+x*2, y*2, colors[v])
+				col = colors[v]
 			}
+			block(c, boardX+x*3, y*2, col)
 		}
 	}
 	if !g.over {
 		for _, q := range shapes[g.cur.kind][g.cur.rot] {
 			if y := g.cur.y + q.y; y >= 0 {
-				block(c, ox+(g.cur.x+q.x)*2, y*2, colors[g.cur.kind+1])
+				block(c, boardX+(g.cur.x+q.x)*3, y*2, colors[g.cur.kind+1])
 			}
 		}
 	}
+
 	white := color.RGBA{255, 255, 255, 255}
-	c.DrawText(0, 1, "BLOCK", white)
-	c.DrawText(0, 9, "DROP", white)
-	c.DrawText(38, 1, "SCORE", white)
-	c.DrawText(40, 9, itoa(g.score), colors[2])
-	c.DrawText(40, 18, "L"+itoa(g.lines), white)
+	center := func(y int, text string, col color.Color) {
+		c.DrawText((32-matrix.TextWidth(text))/2, y, text, col)
+	}
 	if g.over {
-		c.DrawText(20, 12, "GAME", white)
-		c.DrawText(20, 20, "OVER", colors[5])
+		center(5, "GAME", white)
+		center(13, "OVER", colors[5])
+		center(23, "START", divider)
+	} else {
+		center(1, "SCORE", white)
+		center(9, itoa(g.score), colors[2])
+		center(17, "LINES", white)
+		center(25, itoa(g.lines), colors[1])
 	}
 	return 33 * time.Millisecond
 }
 func block(c *matrix.Canvas, x, y int, col color.Color) {
+	// A one-pixel horizontal gutter keeps adjacent pieces readable.
 	c.Set(x, y, col)
 	c.Set(x+1, y, col)
 	c.Set(x, y+1, col)
