@@ -299,6 +299,10 @@
     <div id="c4status"></div>
     <div id="c4board" aria-label="Board: click a column to drop a disc"></div>
     <p class="hint">Click a column, or use ← → and Enter / Space / ↓.</p>
+    <h3>Wireless controllers</h3>
+    <p class="hint">Put a Switch or Xbox controller in pairing mode, then scan and select it below. Previously paired controllers reconnect automatically.</p>
+    <div class="buttons"><button type="button" id="btscan">Scan for controllers</button></div>
+    <div id="btcontrollers"><p class="hint">Checking Bluetooth…</p></div>
   </section>
 </main>
 <script>
@@ -684,6 +688,53 @@ $("scf").addEventListener("submit", async e => {
   drawScenes(await r.json());
 });
 fetch("/api/scenes").then(r => r.json()).then(drawScenes);
+
+// --- Bluetooth controllers ---
+let btBusy = false;
+async function loadControllers() {
+  if (btBusy) return;
+  try {
+    const r = await fetch("/api/bluetooth/controllers");
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json(), box = $("btcontrollers");
+    $("btscan").textContent = data.scanning ? "Scanning…" : "Scan for controllers";
+    box.replaceChildren();
+    if (!data.devices.length) {
+      const p = document.createElement("p"); p.className = "hint";
+      p.textContent = data.scanning ? "Looking for controllers in pairing mode…" : "No controllers found yet.";
+      box.append(p); return;
+    }
+    for (const d of data.devices) {
+      const row = document.createElement("div"); row.className = "scene";
+      const label = document.createElement("span");
+      label.textContent = `${d.name} `;
+      const state = document.createElement("small");
+      state.textContent = d.connected ? "Connected" : d.paired ? "Paired" : "Ready to pair";
+      label.append(state);
+      const button = document.createElement("button"); button.type = "button";
+      button.textContent = d.connected ? "Connected" : d.paired ? "Connect" : "Pair";
+      button.disabled = d.connected;
+      button.addEventListener("click", async () => {
+        btBusy = true; button.disabled = true; button.textContent = d.paired ? "Connecting…" : "Pairing…";
+        const path = d.paired ? "/api/bluetooth/connect" : "/api/bluetooth/pair";
+        const reply = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: d.address }) });
+        btBusy = false;
+        if (!reply.ok) alert(await reply.text());
+        loadControllers();
+      });
+      row.append(label, button); box.append(row);
+    }
+  } catch (e) {
+    $("btcontrollers").textContent = `Bluetooth unavailable: ${e.message}`;
+  }
+}
+$("btscan").addEventListener("click", async () => {
+  const r = await fetch("/api/bluetooth/scan", { method: "POST" });
+  if (!r.ok) alert(await r.text());
+  loadControllers();
+});
+loadControllers();
+setInterval(loadControllers, 2000);
 
 // --- Connect 4 ---
 let c4 = null;

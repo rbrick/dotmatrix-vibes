@@ -406,6 +406,7 @@ func main() {
 	})
 
 	handleConnect4(mux, player, attachGame, persist)
+	handleBluetooth(mux)
 	if *useGamepad {
 		go gamepad.Listen(context.Background(), func(action gamepad.Action) {
 			g, _ := player.State().Scene.(*connect4.Game)
