@@ -552,6 +552,17 @@ func main() {
 				case gamepad.Right, gamepad.Down:
 					m.Move(1)
 					player.Redraw()
+				case gamepad.Back:
+					switch m.Title {
+					case "MENU":
+						if previous != nil {
+							player.Show(previous)
+						}
+					case "GAMES", "DISPLAYS":
+						openGlobal()
+					default:
+						openDisplays()
+					}
 				case gamepad.Select:
 					item, exists := m.Current()
 					if !exists {

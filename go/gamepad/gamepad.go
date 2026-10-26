@@ -14,6 +14,7 @@ const (
 	Up
 	Down
 	Select
+	Back
 	Start
 	Home
 )

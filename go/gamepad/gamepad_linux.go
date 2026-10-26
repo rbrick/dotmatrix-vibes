@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/binary"
 	"log"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,6 +85,9 @@ func (w *watcher) read(path string) {
 		return
 	}
 	defer unix.Close(fd)
+	name, _ := os.ReadFile(filepath.Join("/sys/class/input", filepath.Base(path), "device/name"))
+	controllerName := strings.ToLower(strings.TrimSpace(string(name)))
+	isNintendo := strings.Contains(controllerName, "nintendo") || strings.Contains(controllerName, "joy-con") || strings.Contains(controllerName, "pro controller")
 	poll := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
 	buf := make([]byte, inputEventSize*16)
 	for {
@@ -113,7 +118,7 @@ func (w *watcher) read(path string) {
 			typ := binary.LittleEndian.Uint16(e[16:18])
 			code := binary.LittleEndian.Uint16(e[18:20])
 			value := int32(binary.LittleEndian.Uint32(e[20:24]))
-			if a, ok := translate(typ, code, value); ok {
+			if a, ok := translate(typ, code, value, isNintendo); ok {
 				log.Printf("gamepad %s: %v", filepath.Base(path), a)
 				w.action(a)
 			}
@@ -121,7 +126,7 @@ func (w *watcher) read(path string) {
 	}
 }
 
-func translate(typ, code uint16, value int32) (Action, bool) {
+func translate(typ, code uint16, value int32, nintendo bool) (Action, bool) {
 	if typ == evAbs {
 		switch code {
 		case absHatX:
@@ -152,7 +157,17 @@ func translate(typ, code uint16, value int32) (Action, bool) {
 		return Up, true
 	case btnDpadDown:
 		return Down, true
-	case btnSouth, btnEast, btnNorth, btnWest:
+	case btnSouth:
+		if nintendo {
+			return Back, true
+		} // B is south on Nintendo
+		return Select, true // A is south on Xbox
+	case btnEast:
+		if nintendo {
+			return Select, true
+		} // A is east on Nintendo
+		return Back, true // B is east on Xbox
+	case btnNorth, btnWest:
 		return Select, true
 	case btnStart:
 		return Start, true
