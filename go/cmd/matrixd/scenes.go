@@ -16,6 +16,7 @@ import (
 	"dotmatrix/pokemon"
 	"dotmatrix/prayerclock"
 	"dotmatrix/starfront"
+	"dotmatrix/weather"
 )
 
 // sceneSpec describes a scene in JSON, so it can be rebuilt: what the panel
@@ -33,6 +34,19 @@ type sceneSpec struct {
 	Roof    *roofRequest    `json:"starfront,omitempty"`
 	Bytes   *bytesRequest   `json:"bytes,omitempty"`
 	Citizen *citizenRequest `json:"citizen,omitempty"`
+	Weather *weatherRequest `json:"weather,omitempty"`
+}
+
+type weatherRequest struct {
+	Lat            float64 `json:"lat"`
+	Long           float64 `json:"long"`
+	Refresh        float64 `json:"refresh,omitempty"`
+	Preview        string  `json:"preview,omitempty"`
+	WeatherPreview string  `json:"weatherPreview,omitempty"`
+}
+
+func (r weatherRequest) scene() (*weather.Scene, error) {
+	return weather.New(weather.Options{Lat: r.Lat, Long: r.Long, Interval: time.Duration(r.Refresh * float64(time.Second)), Preview: r.Preview, WeatherPreview: r.WeatherPreview})
 }
 
 type bytesRequest struct {
@@ -167,6 +181,11 @@ func (s sceneSpec) build() (matrix.Scene, error) {
 			return nil, missing()
 		}
 		return orrery.New(orrery.Options{Speed: s.Solar.Speed, Label: s.Solar.Label}), nil
+	case "weather":
+		if s.Weather == nil {
+			return nil, missing()
+		}
+		return s.Weather.scene()
 	}
 	return nil, fmt.Errorf("unknown mode %q", s.Mode)
 }
@@ -199,6 +218,8 @@ func specOf(scene matrix.Scene) (sceneSpec, bool) {
 		}}, true
 	case *orrery.Scene:
 		return sceneSpec{Mode: "solarsystem", Solar: &solarRequest{Speed: sc.Speed, Label: sc.Label}}, true
+	case *weather.Scene:
+		return sceneSpec{Mode: "weather", Weather: &weatherRequest{Lat: sc.Lat, Long: sc.Long, Refresh: sc.Interval.Seconds(), Preview: sc.Preview, WeatherPreview: sc.WeatherPreview}}, true
 	}
 	return sceneSpec{}, false
 }

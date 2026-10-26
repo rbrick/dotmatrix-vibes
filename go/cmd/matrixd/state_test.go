@@ -25,6 +25,7 @@ import (
 	"dotmatrix/pokemon"
 	"dotmatrix/prayerclock"
 	"dotmatrix/starfront"
+	"dotmatrix/weather"
 )
 
 // newPlayer returns a Player that never finds a Pico; only its state matters.
@@ -53,6 +54,10 @@ func TestStateRoundTrip(t *testing.T) {
 		},
 		"image": func(p *matrix.Player) { p.ShowImage(img) },
 		"moon":  func(p *matrix.Player) { p.Show(moonphase.New(true)) },
+		"weather": func(p *matrix.Player) {
+			s, _ := weather.New(weather.Options{Lat: 41.8781, Long: -87.6298, Interval: 15 * time.Minute, Preview: "sunset", WeatherPreview: "storm"})
+			p.Show(s)
+		},
 		"minecraft": func(p *matrix.Player) {
 			s, err := minecraft.New(minecraft.Options{Address: "mc.example.com:25570", Icon: minecraft.IconServer})
 			if err != nil {

@@ -31,7 +31,12 @@
   #balls { display: flex; flex-wrap: wrap; gap: 4px; }
   #balls button { padding: 2px; line-height: 0; background: transparent; border: 1px solid var(--line); }
   #balls img { width: 32px; height: 32px; image-rendering: pixelated; }
-  h2 { font-size: 16px; margin: 24px 0 8px; }
+  h2 { font-size: 16px; margin: 16px 0 8px; }
+  [hidden] { display: none !important; }
+  #tabs { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 10px; position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  #tabs button { white-space: nowrap; padding: 7px 10px; color: var(--fg); background: var(--card); border: 1px solid var(--line); }
+  #tabs button[aria-selected=true] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tab-panel { padding-bottom: 12px; }
   .check { display: flex; align-items: center; gap: 6px; color: var(--fg); }
   #c4 { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
   #c4board { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; background: #0b3fb5; padding: 8px; border-radius: 8px; cursor: pointer; }
@@ -58,6 +63,8 @@
 <main>
   <h1>LED Matrix</h1>
   <p id="status">connecting…</p>
+  <nav id="tabs" aria-label="Display controls" role="tablist"></nav>
+  <h2>Text</h2>
   <form id="f">
     <label>Text (up to 4 lines)
       <textarea id="text" maxlength="500"></textarea>
@@ -95,12 +102,19 @@
     <p class="hint" style="margin:0">Saves whatever is on the panel now (text, a planet, a rotation…) to show again later. Saving with an existing name replaces it.</p>
   </form>
 
-  <h2>Prayer times</h2>
-  <form id="pf">
+  <h2>Location</h2>
+  <form id="lf">
+    <p class="hint" style="margin:0">Shared by weather and prayer times. Saved in this browser; changing it won't change what's on the panel until you select a view.</p>
     <div class="row">
       <label>Latitude <input type="number" id="lat" step="any" min="-90" max="90" required></label>
       <label>Longitude <input type="number" id="long" step="any" min="-180" max="180" required></label>
     </div>
+    <div class="buttons"><button type="button" id="locate">Use my location</button></div>
+    <p class="hint" id="lochint" style="margin:0"></p>
+  </form>
+
+  <h2>Prayer times</h2>
+  <form id="pf">
     <div class="row">
       <label>Method
         <select id="method">
@@ -114,11 +128,25 @@
       </label>
       <label class="check"><input type="checkbox" id="clock24"> 24-hour clock</label>
     </div>
-    <div class="buttons">
-      <button type="submit">Show prayer times</button>
-      <button type="button" id="locate">Use my location</button>
+    <div class="buttons"><button type="submit">Show prayer times</button></div>
+  </form>
+
+  <h2>Weather scene</h2>
+  <form id="wf">
+    <p class="hint" style="margin:0">Live sky and calculated solar times for the shared location above; Open-Meteo supplies only weather.</p>
+    <div class="row">
+      <label>Update <select id="wrefresh"><option value="300">Every 5 min</option><option value="600" selected>Every 10 min</option><option value="1800">Every 30 min</option></select></label>
     </div>
-    <p class="hint" id="lochint" style="margin:0"></p>
+    <div class="row">
+      <label>Debug: time of day
+        <select id="wpreview"><option value="">Live time</option><option value="sunrise">Sunrise preview</option><option value="sunset">Sunset preview</option><option value="night">Night preview</option></select>
+      </label>
+      <label>Debug: conditions
+        <select id="wconditions"><option value="">Live weather</option><option value="rain">Rain preview</option><option value="storm">Thunderstorm preview</option></select>
+      </label>
+    </div>
+    <p class="hint" style="margin:0">Sunrise and sunset loop through twilight; Night runs from dusk through sunrise in 2½ minutes so you can watch the moon set as the sun comes up. Previews affect only the display; select Live time and Live weather to return to current conditions.</p>
+    <div class="buttons"><button type="submit">Show weather</button></div>
   </form>
 
   <h2>Planets</h2>
@@ -276,6 +304,48 @@
 <script>
 const $ = id => document.getElementById(id);
 
+// Keep related controls on one tab without changing their existing forms or IDs.
+const groups = { Text: "Display", "Saved scenes": "Display", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
+  Planets: "Space", "Solar system": "Space", "Moon phase": "Space", Pokémon: "Pokémon",
+  "Minecraft server": "Servers", "Starfront roofs": "Servers", "Neo Tokyo": "Neo Tokyo", Rotation: "Rotation", "Connect 4": "Connect 4" };
+const panels = {}, tabButtons = {}, main = document.querySelector("main");
+let currentPanel;
+for (const node of [...main.children].slice(3)) {
+  if (node.tagName === "H2") {
+    const name = groups[node.textContent];
+    if (!name) throw new Error(`Unassigned tab for ${node.textContent}`);
+    if (!panels[name]) {
+      const panel = document.createElement("section"), button = document.createElement("button");
+      panel.id = `tab-${Object.keys(panels).length}`; panel.className = "tab-panel"; panel.role = "tabpanel";
+      button.type = "button"; button.textContent = name; button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", panel.id); panel.setAttribute("aria-labelledby", `${panel.id}-button`);
+      button.id = `${panel.id}-button`;
+      $("tabs").append(button); main.append(panel);
+      panels[name] = panel; tabButtons[name] = button;
+      button.addEventListener("click", () => showTab(name));
+    }
+    currentPanel = panels[name];
+  }
+  currentPanel.append(node);
+}
+function showTab(name) {
+  for (const [key, panel] of Object.entries(panels)) {
+    panel.hidden = key !== name;
+    tabButtons[key].setAttribute("aria-selected", String(key === name));
+    tabButtons[key].tabIndex = key === name ? 0 : -1;
+  }
+  sessionStorage.setItem("matrix-tab", name);
+}
+$("tabs").addEventListener("keydown", e => {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+  e.preventDefault();
+  const names = Object.keys(panels), i = names.indexOf(Object.keys(tabButtons).find(k => tabButtons[k] === document.activeElement));
+  const next = e.key === "Home" ? 0 : e.key === "End" ? names.length-1 : (i + (e.key === "ArrowRight" ? 1 : names.length-1)) % names.length;
+  showTab(names[next]); tabButtons[names[next]].focus();
+});
+const previousTab = sessionStorage.getItem("matrix-tab");
+showTab(panels[previousTab] ? previousTab : "Display");
+
 function render(s) {
   $("status").className = s.connected ? "ok" : "bad";
   $("status").textContent = s.connected ? `connected on ${s.port}` : `not connected${s.error ? ": " + s.error : ""}`;
@@ -308,20 +378,39 @@ $("pkrandom").addEventListener("click", () =>
 fetch("/api/pokemon/list").then(r => r.json()).then(list => {
   for (const p of list) $("pklist").append(new Option(`#${p.dex}`, p.name));
 });
+$("lf").addEventListener("submit", e => e.preventDefault());
+function locationValues(notify = true) {
+  if (!["lat", "long"].every(id => $(id).value !== "" && $(id).checkValidity())) {
+    showTab("Weather"); $("lat").focus();
+    if (notify) alert("Set a valid latitude and longitude under Location first.");
+    return null;
+  }
+  return { lat: Number($("lat").value), long: Number($("long").value) };
+}
 $("pf").addEventListener("submit", e => {
   e.preventDefault();
+  const loc = locationValues(); if (!loc) return;
   call("/api/prayer", {
-    lat: Number($("lat").value), long: Number($("long").value),
+    ...loc,
     method: $("method").value, clock24: $("clock24").checked,
   });
 });
 function setLocation(lat, long) {
-  $("lat").value = Number(lat).toFixed(4); $("long").value = Number(long).toFixed(4);
+  $("lat").value = lat; $("long").value = long;
   $("lat").dispatchEvent(new Event("change"));
+  saveLocation();
 }
+function saveLocation() {
+  if (["lat", "long"].every(id => $(id).value !== "" && $(id).checkValidity()))
+    localStorage.setItem("matrix-location", JSON.stringify({ lat: Number($("lat").value), long: Number($("long").value) }));
+}
+for (const id of ["lat", "long"]) $(id).addEventListener("input", saveLocation);
+let savedLocation;
+try { savedLocation = JSON.parse(localStorage.getItem("matrix-location")); } catch {}
+if (savedLocation && Number.isFinite(savedLocation.lat) && Number.isFinite(savedLocation.long)) setLocation(savedLocation.lat, savedLocation.long);
 // Browsers only share precise location with HTTPS pages (or localhost), and
 // this page is usually plain HTTP on the LAN. Otherwise look up the city from
-// the public IP address, which is close enough for prayer times.
+// the public IP address, which is close enough for local weather/prayer times.
 async function locateByIP() {
   for (const [url, get] of [
     ["https://get.geojs.io/v1/ip/geo.json", j => [j.latitude, j.longitude, j.city]],
@@ -349,6 +438,11 @@ $("locate").addEventListener("click", async () => {
     $("lochint").textContent = "";
     alert("Couldn't get location: " + err.message + ". Enter the latitude and longitude yourself.");
   }
+});
+$("wf").addEventListener("submit", e => {
+  e.preventDefault();
+  const loc = locationValues(); if (!loc) return;
+  call("/api/weather", { ...loc, refresh: Number($("wrefresh").value), preview: $("wpreview").value, weatherPreview: $("wconditions").value });
 });
 $("clear").addEventListener("click", () => call("/api/clear", {}));
 $("brightness").addEventListener("change", () => call("/api/brightness", { brightness: Number($("brightness").value) }));
@@ -455,9 +549,13 @@ $("lat").addEventListener("change", () => { if ($("lat").value !== "") $("msouth
 
 // Each view builds its settings from the form above at the time it's started.
 const views = [
+  { mode: "weather", label: "Weather scene", seconds: 60, on: false, spec: () => {
+      const loc = locationValues(false); if (!loc) throw "Set a valid location first.";
+      return { ...loc, refresh: Number($("wrefresh").value), preview: $("wpreview").value, weatherPreview: $("wconditions").value };
+    } },
   { mode: "prayer", label: "Prayer times", seconds: 180, on: true, spec: () => {
-      if ($("lat").value === "" || $("long").value === "") throw "Set a latitude and longitude under Prayer times first.";
-      return { lat: Number($("lat").value), long: Number($("long").value), method: $("method").value, clock24: $("clock24").checked };
+      const loc = locationValues(false); if (!loc) throw "Set a valid location first.";
+      return { ...loc, method: $("method").value, clock24: $("clock24").checked };
     } },
   // The tour moves on one planet per turn when its dwell matches the view's time.
   { mode: "planet", label: "Planet", seconds: 20, on: true, spec: secs =>
@@ -514,10 +612,17 @@ function loadSpec(s) {
     $("plbody").value = s.planet.body; $("plspeed").value = s.planet.speed; $("pllabel").checked = s.planet.label;
   }
   if (s.prayer) {
-    for (const k of ["lat", "long", "method"]) $(k).value = s.prayer[k];
+    setLocation(s.prayer.lat, s.prayer.long);
+    $("method").value = s.prayer.method;
     $("clock24").checked = s.prayer.clock24;
   }
   if (s.moon) $("msouth").checked = s.moon.south;
+  if (s.weather) {
+    setLocation(s.weather.lat, s.weather.long);
+    $("wrefresh").value = String(s.weather.refresh || 600);
+    $("wpreview").value = s.weather.preview || "";
+    $("wconditions").value = s.weather.weatherPreview || "";
+  }
   if (s.minecraft) {
     $("mcaddr").value = s.minecraft.address; $("mcicon").value = s.minecraft.icon || "grass";
     $("mcrefresh").value = String(s.minecraft.refresh || 5);
@@ -536,7 +641,7 @@ function loadSpec(s) {
 }
 
 // --- Saved scenes ---
-const modeNames = { text: "text", prayer: "prayer times", planet: "planet", pokemon: "Pokémon", moon: "moon phase",
+const modeNames = { text: "text", weather: "weather", prayer: "prayer times", planet: "planet", pokemon: "Pokémon", moon: "moon phase",
   solarsystem: "solar system", minecraft: "Minecraft", starfront: "Starfront", bytes: "$BYTES", citizen: "Citizen",
   rotation: "rotation", image: "image" };
 function drawScenes(list) {
@@ -649,6 +754,8 @@ call("/api/state").then(s => {
   if (!s) return;
   $("brightness").value = s.brightness || 0;
   fillForms(s);
+  if (savedLocation && Number.isFinite(savedLocation.lat) && Number.isFinite(savedLocation.long)) setLocation(savedLocation.lat, savedLocation.long);
+  if (!previousTab && s.mode === "weather") showTab("Weather");
 });
 setInterval(() => call("/api/state").then(s => { showMC(s); showRoofs(s); showNT(s); }), 2000);
 </script>

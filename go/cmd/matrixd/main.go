@@ -22,6 +22,9 @@
 //	GET  /api/pokemon/list  every Pokémon: [{"dex":1,"name":"Bulbasaur"}, ...]
 //	GET  /api/pokemon/balls every Poké Ball: [{"name":"Poké Ball","shortcode":"pokeball"}, ...]
 //	GET  /api/pokemon/balls/{shortcode}.png  a ball's sprite
+//	POST /api/weather     {"lat":40.71,"long":-74.01,"refresh":600,
+//	                       "preview":"sunset","weatherPreview":"storm"}
+//	                      a full-panel Open-Meteo landscape with optional previews
 //	POST /api/moon        {"south":false}
 //	                      today's phase of the Moon, and the date of the next full or new moon
 //	POST /api/solarsystem {"speed":0,"label":true}
@@ -51,7 +54,7 @@
 //	                                {"mode":"planet","planet":{...},"seconds":20},
 //	                                {"mode":"moon","moon":{},"seconds":20}]}
 //	                      takes turns showing views; each item is a mode ("text",
-//	                      "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes" or "citizen") with
+//	                      "prayer", "weather", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes" or "citizen") with
 //	                      the same
 //	                      settings as that mode's endpoint
 //	GET    /api/scenes             saved scenes: [{"name":"Welcome","mode":"text",...}, ...]
@@ -466,6 +469,29 @@ func main() {
 		s, err := req.scene()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		player.Show(s)
+		persist()
+		writeState(w, player)
+	})
+
+	mux.HandleFunc("POST /api/weather", func(w http.ResponseWriter, r *http.Request) {
+		var req weatherRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody)).Decode(&req); err != nil {
+			http.Error(w, `expected {"lat": ..., "long": ..., "refresh": 600}`, http.StatusBadRequest)
+			return
+		}
+		s, err := req.scene()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		err = s.Refresh(ctx)
+		cancel()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
 			return
 		}
 		player.Show(s)

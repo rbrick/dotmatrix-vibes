@@ -87,7 +87,17 @@ Shows the current time with a time-of-day emoji (🌙 night, 🌅 Fajr to sunris
 curl -d '{"lat":41.8781,"long":-87.6298,"method":"ISNA","clock24":false}' localhost:8080/api/prayer
 ```
 
-Methods: `ISNA`, `MWL`, `EGAS`, `Karachi`, `UAE`, `Kuwait`. The control page has a form for this too, including "Use my location".
+Methods: `ISNA`, `MWL`, `EGAS`, `Karachi`, `UAE`, `Kuwait`. The control page groups controls into tabs. Set latitude/longitude once in the **Location** section of the Weather tab (or choose **Use my location**); weather and prayer times share those coordinates, which are saved in this browser.
+
+### Weather scene
+
+A full-panel animated landscape: Open-Meteo supplies only current weather; the prayer clock's solar calculations determine local sunrise, sunset, and the Sun's real-time height and east-to-west progress from your coordinates. Daylight and warm twilight change gradually; a swirling Milky Way, golden star halos and a chunky eight-step moon phase travel through the night, with moving layered clouds, rain and lightning for current conditions. Wavy cobalt, turquoise and ochre sky strokes, textured hills and a dark foreground cypress take inspiration from Van Gogh's *The Starry Night*.
+
+```bash
+curl -d '{"lat":41.8781,"long":-87.6298,"refresh":600}' localhost:8080/api/weather
+```
+
+The control page uses the shared location from the Weather tab. Its debug controls preview sunrise and sunset (each loops through 2½ hours of twilight in 2½ minutes), night (dusk through sunrise in 2½ minutes, with the moon setting as the sun rises), rain or thunderstorms. Time and weather previews can be combined. The optional `"preview":"sunset"` and `"weatherPreview":"storm"` fields also work with `/api/weather`; set them to `""` to return to live conditions. Weather is refreshed every 10 minutes by default (minimum one minute); the last conditions remain visible during a temporary API failure, while solar timing continues locally.
 
 ### Planets
 
