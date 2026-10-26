@@ -104,7 +104,9 @@ import (
 	"dotmatrix/planets"
 	"dotmatrix/pokemon"
 	"dotmatrix/prayerclock"
+	"dotmatrix/runner"
 	"dotmatrix/starfront"
+	"dotmatrix/tetris"
 )
 
 //go:embed index.html
@@ -425,7 +427,12 @@ func main() {
 			player.Show(menu.New("MENU", items))
 		}
 		openGames := func() {
-			player.Show(menu.New("GAMES", []menu.Item{{ID: "connect4", Label: "CONNECT 4"}, {ID: "back", Label: "BACK"}}))
+			player.Show(menu.New("GAMES", []menu.Item{
+				{ID: "connect4", Label: "CONNECT 4"},
+				{ID: "tetris", Label: "BLOCK DROP"},
+				{ID: "runner", Label: "PIXEL RUNNER"},
+				{ID: "back", Label: "BACK"},
+			}))
 		}
 		go gamepad.Listen(context.Background(), func(action gamepad.Action) {
 			controllerMu.Lock()
@@ -468,6 +475,10 @@ func main() {
 						attachGame(g)
 						player.Show(g)
 						persist()
+					case "tetris":
+						player.Show(tetris.New())
+					case "runner":
+						player.Show(runner.New())
 					case "off":
 						player.Clear()
 						persist()
@@ -489,24 +500,49 @@ func main() {
 				}
 				return
 			}
-			g, _ := player.State().Scene.(*connect4.Game)
-			if g == nil {
-				return
-			}
-			switch action {
-			case gamepad.Left:
-				g.MoveCursor(-1)
-			case gamepad.Right:
-				g.MoveCursor(1)
-			case gamepad.Select, gamepad.Down:
-				if err := g.DropAtCursor(); err != nil {
-					log.Printf("gamepad move: %v", err)
+			switch g := player.State().Scene.(type) {
+			case *connect4.Game:
+				switch action {
+				case gamepad.Left:
+					g.MoveCursor(-1)
+				case gamepad.Right:
+					g.MoveCursor(1)
+				case gamepad.Select, gamepad.Down:
+					if err := g.DropAtCursor(); err != nil {
+						log.Printf("gamepad move: %v", err)
+					}
+				default:
+					return
 				}
-			default:
-				return
+				player.Redraw()
+				persist()
+			case *tetris.Game:
+				switch action {
+				case gamepad.Left:
+					g.Move(-1)
+				case gamepad.Right:
+					g.Move(1)
+				case gamepad.Down:
+					g.SoftDrop()
+				case gamepad.Up, gamepad.Select:
+					g.Rotate()
+				default:
+					return
+				}
+				player.Redraw()
+			case *runner.Game:
+				switch action {
+				case gamepad.Left:
+					g.Move(-1)
+				case gamepad.Right:
+					g.Move(1)
+				case gamepad.Up, gamepad.Select:
+					g.Jump()
+				default:
+					return
+				}
+				player.Redraw()
 			}
-			player.Redraw()
-			persist()
 		})
 	}
 	handleScenes(mux, player, state, attachGame, persist)
