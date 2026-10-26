@@ -11,8 +11,11 @@ type Action int
 const (
 	Left Action = iota
 	Right
+	Up
+	Down
 	Select
 	Start
+	Home
 )
 
 // Listen watches controllers until ctx is cancelled. Errors opening an input

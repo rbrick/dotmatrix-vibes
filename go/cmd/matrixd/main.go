@@ -90,11 +90,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"dotmatrix/connect4"
 	"dotmatrix/gamepad"
 	"dotmatrix/matrix"
+	"dotmatrix/menu"
 	"dotmatrix/minecraft"
 	"dotmatrix/moonphase"
 	"dotmatrix/neotokyo"
@@ -408,15 +410,86 @@ func main() {
 	handleConnect4(mux, player, attachGame, persist)
 	handleBluetooth(mux)
 	if *useGamepad {
+		var controllerMu sync.Mutex
+		var previous matrix.Scene
+		openGlobal := func() {
+			current := player.State().Scene
+			if _, inMenu := current.(*menu.Menu); !inMenu {
+				previous = current
+			}
+			items := []menu.Item{{ID: "games", Label: "GAMES"}, {ID: "resume", Label: "RESUME"}}
+			for i, scene := range state.sceneList() {
+				items = append(items, menu.Item{ID: fmt.Sprintf("scene:%d", i), Label: scene.Name})
+			}
+			items = append(items, menu.Item{ID: "off", Label: "DISPLAY OFF"})
+			player.Show(menu.New("MENU", items))
+		}
+		openGames := func() {
+			player.Show(menu.New("GAMES", []menu.Item{{ID: "connect4", Label: "CONNECT 4"}, {ID: "back", Label: "BACK"}}))
+		}
 		go gamepad.Listen(context.Background(), func(action gamepad.Action) {
-			g, _ := player.State().Scene.(*connect4.Game)
-			if action == gamepad.Start {
-				g = connect4.New(connect4.Options{VsComputer: true, Difficulty: connect4.Normal})
-				attachGame(g)
-				player.Show(g)
-				persist()
+			controllerMu.Lock()
+			defer controllerMu.Unlock()
+			if action == gamepad.Home {
+				openGlobal()
 				return
 			}
+			if action == gamepad.Start {
+				if _, inMenu := player.State().Scene.(*menu.Menu); !inMenu {
+					previous = player.State().Scene
+				}
+				openGames()
+				return
+			}
+			if m, ok := player.State().Scene.(*menu.Menu); ok {
+				switch action {
+				case gamepad.Left, gamepad.Up:
+					m.Move(-1)
+					player.Redraw()
+				case gamepad.Right, gamepad.Down:
+					m.Move(1)
+					player.Redraw()
+				case gamepad.Select:
+					item, exists := m.Current()
+					if !exists {
+						return
+					}
+					switch item.ID {
+					case "games":
+						openGames()
+					case "back":
+						openGlobal()
+					case "resume":
+						if previous != nil {
+							player.Show(previous)
+						}
+					case "connect4":
+						g := connect4.New(connect4.Options{VsComputer: true, Difficulty: connect4.Normal})
+						attachGame(g)
+						player.Show(g)
+						persist()
+					case "off":
+						player.Clear()
+						persist()
+					default:
+						var index int
+						if _, err := fmt.Sscanf(item.ID, "scene:%d", &index); err == nil {
+							scenes := state.sceneList()
+							if index >= 0 && index < len(scenes) {
+								content := scenes[index].content
+								content.Brightness = player.State().Brightness
+								if err := content.apply(player, attachGame); err != nil {
+									log.Printf("controller menu: %v", err)
+								} else {
+									persist()
+								}
+							}
+						}
+					}
+				}
+				return
+			}
+			g, _ := player.State().Scene.(*connect4.Game)
 			if g == nil {
 				return
 			}
@@ -425,10 +498,12 @@ func main() {
 				g.MoveCursor(-1)
 			case gamepad.Right:
 				g.MoveCursor(1)
-			case gamepad.Select:
+			case gamepad.Select, gamepad.Down:
 				if err := g.DropAtCursor(); err != nil {
 					log.Printf("gamepad move: %v", err)
 				}
+			default:
+				return
 			}
 			player.Redraw()
 			persist()

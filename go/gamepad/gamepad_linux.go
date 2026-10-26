@@ -22,6 +22,7 @@ const (
 	btnNorth = 307 // Xbox Y, Switch X
 	btnWest  = 308 // Xbox X, Switch Y
 	btnStart = 315 // Start/Menu/+
+	btnMode  = 316 // Xbox Guide, Switch Home
 
 	btnDpadUp    = 544
 	btnDpadDown  = 545
@@ -29,6 +30,7 @@ const (
 	btnDpadRight = 547
 
 	absHatX = 16
+	absHatY = 17
 )
 
 // input_event is 24 bytes on 64-bit Raspberry Pi OS.
@@ -120,12 +122,22 @@ func (w *watcher) read(path string) {
 }
 
 func translate(typ, code uint16, value int32) (Action, bool) {
-	if typ == evAbs && code == absHatX {
-		switch {
-		case value < 0:
-			return Left, true
-		case value > 0:
-			return Right, true
+	if typ == evAbs {
+		switch code {
+		case absHatX:
+			if value < 0 {
+				return Left, true
+			}
+			if value > 0 {
+				return Right, true
+			}
+		case absHatY:
+			if value < 0 {
+				return Up, true
+			}
+			if value > 0 {
+				return Down, true
+			}
 		}
 	}
 	if typ != evKey || value != 1 { // act once on press, not repeat/release
@@ -136,10 +148,16 @@ func translate(typ, code uint16, value int32) (Action, bool) {
 		return Left, true
 	case btnDpadRight:
 		return Right, true
-	case btnSouth, btnEast, btnNorth, btnWest, btnDpadDown:
+	case btnDpadUp:
+		return Up, true
+	case btnDpadDown:
+		return Down, true
+	case btnSouth, btnEast, btnNorth, btnWest:
 		return Select, true
-	case btnStart, btnDpadUp:
+	case btnStart:
 		return Start, true
+	case btnMode:
+		return Home, true
 	}
 	return 0, false
 }

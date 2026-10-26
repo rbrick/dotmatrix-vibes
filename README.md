@@ -209,7 +209,7 @@ Play on the panel from the control page (click a column, or ← → and Enter/Sp
 
 #### Bluetooth and USB controllers
 
-`matrixd` automatically discovers Linux game controllers, including Nintendo Switch Pro/Joy-Con and Xbox controllers, when they connect or reconnect. Press **Start/Menu/+** (or D-pad Up) to start a Connect 4 game against the computer, use the D-pad Left/Right to choose a column, and press any face button (A/B/X/Y) to drop a disc. USB controllers work immediately.
+`matrixd` automatically discovers Linux game controllers, including Nintendo Switch Pro/Joy-Con and Xbox controllers, when they connect or reconnect. Press **Start/Menu/+** for the game-select screen, choose Connect 4 with the D-pad and any face button, then use D-pad Left/Right to choose a column and A/B/X/Y to drop a disc. Press the controller's **Home/Guide** button anywhere to open the global menu. From there you can open Games, resume the previous display, show any saved scene, or turn the display off. USB controllers work immediately.
 
 Pair a Bluetooth controller once on the Pi (put the controller in pairing mode first):
 
