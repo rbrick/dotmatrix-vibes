@@ -104,7 +104,6 @@ import (
 	"dotmatrix/planets"
 	"dotmatrix/pokemon"
 	"dotmatrix/prayerclock"
-	"dotmatrix/runner"
 	"dotmatrix/starfront"
 	"dotmatrix/tetris"
 )
@@ -419,20 +418,27 @@ func main() {
 			if _, inMenu := current.(*menu.Menu); !inMenu {
 				previous = current
 			}
-			items := []menu.Item{{ID: "games", Label: "GAMES"}, {ID: "resume", Label: "RESUME"}}
-			for i, scene := range state.sceneList() {
-				items = append(items, menu.Item{ID: fmt.Sprintf("scene:%d", i), Label: scene.Name})
-			}
-			items = append(items, menu.Item{ID: "off", Label: "DISPLAY OFF"})
-			player.Show(menu.New("MENU", items))
+			player.Show(menu.New("MENU", []menu.Item{
+				{ID: "games", Label: "GAMES"},
+				{ID: "displays", Label: "DISPLAYS"},
+				{ID: "resume", Label: "RESUME"},
+				{ID: "off", Label: "DISPLAY OFF"},
+			}))
 		}
 		openGames := func() {
 			player.Show(menu.New("GAMES", []menu.Item{
 				{ID: "connect4", Label: "CONNECT 4"},
 				{ID: "tetris", Label: "BLOCK DROP"},
-				{ID: "runner", Label: "PIXEL RUNNER"},
 				{ID: "back", Label: "BACK"},
 			}))
+		}
+		openDisplays := func() {
+			items := []menu.Item{{ID: "welcome", Label: "WELCOME"}}
+			for i, scene := range state.sceneList() {
+				items = append(items, menu.Item{ID: fmt.Sprintf("scene:%d", i), Label: scene.Name})
+			}
+			items = append(items, menu.Item{ID: "back", Label: "BACK"})
+			player.Show(menu.New("DISPLAYS", items))
 		}
 		go gamepad.Listen(context.Background(), func(action gamepad.Action) {
 			controllerMu.Lock()
@@ -464,6 +470,8 @@ func main() {
 					switch item.ID {
 					case "games":
 						openGames()
+					case "displays":
+						openDisplays()
 					case "back":
 						openGlobal()
 					case "resume":
@@ -477,8 +485,9 @@ func main() {
 						persist()
 					case "tetris":
 						player.Show(tetris.New())
-					case "runner":
-						player.Show(runner.New())
+					case "welcome":
+						player.ShowText(matrix.Text{Text: "WELCOME!"})
+						persist()
 					case "off":
 						player.Clear()
 						persist()
@@ -526,18 +535,6 @@ func main() {
 					g.SoftDrop()
 				case gamepad.Up, gamepad.Select:
 					g.Rotate()
-				default:
-					return
-				}
-				player.Redraw()
-			case *runner.Game:
-				switch action {
-				case gamepad.Left:
-					g.Move(-1)
-				case gamepad.Right:
-					g.Move(1)
-				case gamepad.Up, gamepad.Select:
-					g.Jump()
 				default:
 					return
 				}
