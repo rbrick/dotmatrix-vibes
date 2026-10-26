@@ -423,24 +423,31 @@ func main() {
 	if *useGamepad {
 		var controllerMu sync.Mutex
 		var previous matrix.Scene
+		menuPositions := make(map[string]int)
+		showMenu := func(title string, items []menu.Item) {
+			if current, ok := player.State().Scene.(*menu.Menu); ok {
+				menuPositions[current.Title] = current.Index()
+			}
+			player.Show(menu.NewAt(title, items, menuPositions[title]))
+		}
 		openGlobal := func() {
 			current := player.State().Scene
 			if _, inMenu := current.(*menu.Menu); !inMenu {
 				previous = current
 			}
-			player.Show(menu.New("MENU", []menu.Item{
+			showMenu("MENU", []menu.Item{
 				{ID: "games", Label: "GAMES"},
 				{ID: "displays", Label: "DISPLAYS"},
 				{ID: "resume", Label: "RESUME"},
 				{ID: "off", Label: "DISPLAY OFF"},
-			}))
+			})
 		}
 		openGames := func() {
-			player.Show(menu.New("GAMES", []menu.Item{
+			showMenu("GAMES", []menu.Item{
 				{ID: "connect4", Label: "CONNECT 4"},
 				{ID: "tetris", Label: "BLOCK DROP"},
-				{ID: "back", Label: "BACK"},
-			}))
+				{ID: "back:global", Label: "BACK"},
+			})
 		}
 		var configuredLat, configuredLong float64
 		var hasConfiguredLocation bool
@@ -475,22 +482,55 @@ func main() {
 		}
 		openDisplays := func() {
 			items := []menu.Item{
-				{ID: "display:planet", Label: "PLANET TOUR"},
-				{ID: "display:solar", Label: "SOLAR SYSTEM"},
-				{ID: "display:moon", Label: "MOON PHASE"},
-				{ID: "display:pokemon", Label: "POKEMON"},
-				{ID: "display:starfront", Label: "STARFRONT"},
-				{ID: "display:bytes", Label: "BYTES PRICE"},
-				{ID: "display:citizen", Label: "CITIZENS"},
+				{ID: "config:planet", Label: "PLANETS"},
+				{ID: "config:solar", Label: "SOLAR SYSTEM"},
+				{ID: "config:moon", Label: "MOON PHASE"},
+				{ID: "config:pokemon", Label: "POKEMON"},
+				{ID: "config:starfront", Label: "STARFRONT"},
+				{ID: "config:bytes", Label: "BYTES PRICE"},
+				{ID: "config:citizen", Label: "CITIZENS"},
 			}
 			if _, _, ok := configuredLocation(); ok {
-				items = append(items, menu.Item{ID: "display:weather", Label: "WEATHER"}, menu.Item{ID: "display:prayer", Label: "PRAYER CLOCK"})
+				items = append(items, menu.Item{ID: "config:weather", Label: "WEATHER"}, menu.Item{ID: "config:prayer", Label: "PRAYER CLOCK"})
 			}
 			for i, scene := range state.sceneList() {
 				items = append(items, menu.Item{ID: fmt.Sprintf("scene:%d", i), Label: scene.Name})
 			}
-			items = append(items, menu.Item{ID: "welcome", Label: "WELCOME"}, menu.Item{ID: "back", Label: "BACK"})
-			player.Show(menu.New("DISPLAYS", items))
+			items = append(items, menu.Item{ID: "welcome", Label: "WELCOME"}, menu.Item{ID: "back:global", Label: "BACK"})
+			showMenu("DISPLAYS", items)
+		}
+		openDisplayConfig := func(kind string) {
+			back := menu.Item{ID: "back:displays", Label: "BACK"}
+			var items []menu.Item
+			switch kind {
+			case "planet":
+				for _, body := range []string{"tour", "sun", "mercury", "venus", "earth", "moon", "mars", "jupiter", "saturn", "uranus", "neptune", "pluto"} {
+					items = append(items, menu.Item{ID: "display:planet:" + body, Label: strings.ToUpper(body)})
+				}
+			case "solar":
+				items = []menu.Item{{ID: "display:solar:0", Label: "LIVE"}, {ID: "display:solar:1", Label: "1 DAY / SEC"}, {ID: "display:solar:30", Label: "30 DAYS / SEC"}}
+			case "moon":
+				items = []menu.Item{{ID: "display:moon:north", Label: "NORTHERN"}, {ID: "display:moon:south", Label: "SOUTHERN"}}
+			case "pokemon":
+				items = []menu.Item{{ID: "display:pokemon:normal", Label: "RANDOM"}, {ID: "display:pokemon:shiny", Label: "RANDOM SHINY"}}
+			case "starfront":
+				items = append(items, menu.Item{ID: "display:starfront:0", Label: "ALL BUILDINGS"})
+				for i := 1; i <= 14; i++ {
+					items = append(items, menu.Item{ID: fmt.Sprintf("display:starfront:%d", i), Label: fmt.Sprintf("BUILDING %d", i)})
+				}
+			case "bytes":
+				items = []menu.Item{{ID: "display:bytes:30", Label: "UPDATE 30 SEC"}, {ID: "display:bytes:60", Label: "UPDATE 1 MIN"}, {ID: "display:bytes:300", Label: "UPDATE 5 MIN"}}
+			case "citizen":
+				items = []menu.Item{{ID: "display:citizen:0", Label: "EITHER SEASON"}, {ID: "display:citizen:1", Label: "SEASON 1"}, {ID: "display:citizen:2", Label: "SEASON 2"}}
+			case "weather":
+				items = []menu.Item{{ID: "display:weather:live", Label: "LIVE"}, {ID: "display:weather:sunrise", Label: "SUNRISE PREVIEW"}, {ID: "display:weather:sunset", Label: "SUNSET PREVIEW"}, {ID: "display:weather:night", Label: "NIGHT PREVIEW"}, {ID: "display:weather:rain", Label: "RAIN PREVIEW"}, {ID: "display:weather:storm", Label: "STORM PREVIEW"}}
+			case "prayer":
+				for _, method := range []string{"ISNA", "MWL", "EGAS", "Karachi", "UAE", "Kuwait"} {
+					items = append(items, menu.Item{ID: "display:prayer:" + method, Label: strings.ToUpper(method)})
+				}
+			}
+			items = append(items, back)
+			showMenu(strings.ToUpper(kind), items)
 		}
 		go gamepad.Listen(context.Background(), func(action gamepad.Action) {
 			controllerMu.Lock()
@@ -519,13 +559,19 @@ func main() {
 					if !exists {
 						return
 					}
+					if kind, ok := strings.CutPrefix(item.ID, "config:"); ok {
+						openDisplayConfig(kind)
+						return
+					}
 					switch item.ID {
 					case "games":
 						openGames()
 					case "displays":
 						openDisplays()
-					case "back":
+					case "back:global":
 						openGlobal()
+					case "back:displays":
+						openDisplays()
 					case "resume":
 						if previous != nil {
 							player.Show(previous)
@@ -540,32 +586,55 @@ func main() {
 					case "welcome":
 						player.ShowText(matrix.Text{Text: "WELCOME!"})
 						persist()
-					case "display:planet":
-						showControllerDisplay(player, sceneSpec{Mode: "planet", Planet: &planetRequest{Body: "tour", Label: true, Dwell: 15}}, persist)
-					case "display:solar":
-						showControllerDisplay(player, sceneSpec{Mode: "solarsystem", Solar: &solarRequest{Label: true}}, persist)
-					case "display:moon":
-						showControllerDisplay(player, sceneSpec{Mode: "moon", Moon: &moonRequest{}}, persist)
-					case "display:pokemon":
-						showControllerDisplay(player, sceneSpec{Mode: "pokemon", Pokemon: &pokemonRequest{Pokemon: "random", Label: true, Dwell: 15}}, persist)
-					case "display:starfront":
-						showControllerDisplay(player, sceneSpec{Mode: "starfront", Roof: &roofRequest{Refresh: 15}}, persist)
-					case "display:bytes":
-						showControllerDisplay(player, sceneSpec{Mode: "bytes", Bytes: &bytesRequest{Refresh: 30}}, persist)
-					case "display:citizen":
-						showControllerDisplay(player, sceneSpec{Mode: "citizen", Citizen: &citizenRequest{Zoom: true, Label: true, Dwell: 20}}, persist)
-					case "display:weather":
-						if lat, long, ok := configuredLocation(); ok {
-							showControllerDisplay(player, sceneSpec{Mode: "weather", Weather: &weatherRequest{Lat: lat, Long: long, Refresh: 600}}, persist)
-						}
-					case "display:prayer":
-						if lat, long, ok := configuredLocation(); ok {
-							showControllerDisplay(player, sceneSpec{Mode: "prayer", Prayer: &prayerRequest{Lat: &lat, Long: &long, Method: "ISNA"}}, persist)
-						}
 					case "off":
 						player.Clear()
 						persist()
 					default:
+						parts := strings.Split(item.ID, ":")
+						if len(parts) == 3 && parts[0] == "display" {
+							value := parts[2]
+							switch parts[1] {
+							case "planet":
+								showControllerDisplay(player, sceneSpec{Mode: "planet", Planet: &planetRequest{Body: value, Label: true, Dwell: 15}}, persist)
+							case "solar":
+								var speed float64
+								fmt.Sscan(value, &speed)
+								showControllerDisplay(player, sceneSpec{Mode: "solarsystem", Solar: &solarRequest{Speed: speed, Label: true}}, persist)
+							case "moon":
+								showControllerDisplay(player, sceneSpec{Mode: "moon", Moon: &moonRequest{South: value == "south"}}, persist)
+							case "pokemon":
+								showControllerDisplay(player, sceneSpec{Mode: "pokemon", Pokemon: &pokemonRequest{Pokemon: "random", Shiny: value == "shiny", Label: true, Dwell: 15}}, persist)
+							case "starfront":
+								var building int
+								fmt.Sscan(value, &building)
+								showControllerDisplay(player, sceneSpec{Mode: "starfront", Roof: &roofRequest{Building: building, Refresh: 15}}, persist)
+							case "bytes":
+								var refresh float64
+								fmt.Sscan(value, &refresh)
+								showControllerDisplay(player, sceneSpec{Mode: "bytes", Bytes: &bytesRequest{Refresh: refresh}}, persist)
+							case "citizen":
+								var season int
+								fmt.Sscan(value, &season)
+								showControllerDisplay(player, sceneSpec{Mode: "citizen", Citizen: &citizenRequest{Season: season, Zoom: true, Label: true, Dwell: 20}}, persist)
+							case "weather":
+								if lat, long, ok := configuredLocation(); ok {
+									req := &weatherRequest{Lat: lat, Long: long, Refresh: 600}
+									if value != "live" {
+										if value == "rain" || value == "storm" {
+											req.WeatherPreview = value
+										} else {
+											req.Preview = value
+										}
+									}
+									showControllerDisplay(player, sceneSpec{Mode: "weather", Weather: req}, persist)
+								}
+							case "prayer":
+								if lat, long, ok := configuredLocation(); ok {
+									showControllerDisplay(player, sceneSpec{Mode: "prayer", Prayer: &prayerRequest{Lat: &lat, Long: &long, Method: value}}, persist)
+								}
+							}
+							return
+						}
 						var index int
 						if _, err := fmt.Sscanf(item.ID, "scene:%d", &index); err == nil {
 							scenes := state.sceneList()
