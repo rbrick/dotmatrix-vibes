@@ -299,7 +299,10 @@
     <div id="c4status"></div>
     <div id="c4board" aria-label="Board: click a column to drop a disc"></div>
     <p class="hint">Click a column, or use ← → and Enter / Space / ↓.</p>
-    <h3>Wireless controllers</h3>
+  </section>
+
+  <h2>Bluetooth controllers</h2>
+  <section id="controllers">
     <p class="hint">Put a Switch or Xbox controller in pairing mode, then scan and select it below. Previously paired controllers reconnect automatically.</p>
     <div class="buttons"><button type="button" id="btscan">Scan for controllers</button></div>
     <div id="btcontrollers"><p class="hint">Checking Bluetooth…</p></div>
@@ -311,7 +314,8 @@ const $ = id => document.getElementById(id);
 // Keep related controls on one tab without changing their existing forms or IDs.
 const groups = { Text: "Display", "Saved scenes": "Display", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
   Planets: "Space", "Solar system": "Space", "Moon phase": "Space", Pokémon: "Pokémon",
-  "Minecraft server": "Servers", "Starfront roofs": "Servers", "Neo Tokyo": "Neo Tokyo", Rotation: "Rotation", "Connect 4": "Connect 4" };
+  "Minecraft server": "Servers", "Starfront roofs": "Servers", "Neo Tokyo": "Neo Tokyo", Rotation: "Rotation", "Connect 4": "Games",
+  "Bluetooth controllers": "Controllers" };
 const panels = {}, tabButtons = {}, main = document.querySelector("main");
 let currentPanel;
 for (const node of [...main.children].slice(3)) {
