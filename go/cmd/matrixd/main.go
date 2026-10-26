@@ -269,6 +269,16 @@ func statusOf(s *minecraft.Scene) *mcStatus {
 
 const maxBody = 4 << 20
 
+func showControllerDisplay(player *matrix.Player, spec sceneSpec, persist func()) {
+	scene, err := spec.build()
+	if err != nil {
+		log.Printf("controller menu: %v", err)
+		return
+	}
+	player.Show(scene)
+	persist()
+}
+
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "HTTP listen address (use :8080 to allow other machines)")
 	port := flag.String("port", "", "serial port of the Pico (default: find automatically)")
@@ -432,12 +442,54 @@ func main() {
 				{ID: "back", Label: "BACK"},
 			}))
 		}
+		var configuredLat, configuredLong float64
+		var hasConfiguredLocation bool
+		configuredLocation := func() (float64, float64, bool) {
+			if hasConfiguredLocation {
+				return configuredLat, configuredLong, true
+			}
+			locationOf := func(spec sceneSpec) (float64, float64, bool) {
+				if spec.Weather != nil && (spec.Weather.Lat != 0 || spec.Weather.Long != 0) {
+					return spec.Weather.Lat, spec.Weather.Long, true
+				}
+				if spec.Prayer != nil && spec.Prayer.Lat != nil && spec.Prayer.Long != nil {
+					return *spec.Prayer.Lat, *spec.Prayer.Long, true
+				}
+				return 0, 0, false
+			}
+			if previous != nil {
+				if spec, ok := specOf(previous); ok {
+					if lat, long, ok := locationOf(spec); ok {
+						configuredLat, configuredLong, hasConfiguredLocation = lat, long, true
+						return lat, long, true
+					}
+				}
+			}
+			for _, saved := range state.sceneList() {
+				if lat, long, ok := locationOf(saved.sceneSpec); ok {
+					configuredLat, configuredLong, hasConfiguredLocation = lat, long, true
+					return lat, long, true
+				}
+			}
+			return 0, 0, false
+		}
 		openDisplays := func() {
-			items := []menu.Item{{ID: "welcome", Label: "WELCOME"}}
+			items := []menu.Item{
+				{ID: "display:planet", Label: "PLANET TOUR"},
+				{ID: "display:solar", Label: "SOLAR SYSTEM"},
+				{ID: "display:moon", Label: "MOON PHASE"},
+				{ID: "display:pokemon", Label: "POKEMON"},
+				{ID: "display:starfront", Label: "STARFRONT"},
+				{ID: "display:bytes", Label: "BYTES PRICE"},
+				{ID: "display:citizen", Label: "CITIZENS"},
+			}
+			if _, _, ok := configuredLocation(); ok {
+				items = append(items, menu.Item{ID: "display:weather", Label: "WEATHER"}, menu.Item{ID: "display:prayer", Label: "PRAYER CLOCK"})
+			}
 			for i, scene := range state.sceneList() {
 				items = append(items, menu.Item{ID: fmt.Sprintf("scene:%d", i), Label: scene.Name})
 			}
-			items = append(items, menu.Item{ID: "back", Label: "BACK"})
+			items = append(items, menu.Item{ID: "welcome", Label: "WELCOME"}, menu.Item{ID: "back", Label: "BACK"})
 			player.Show(menu.New("DISPLAYS", items))
 		}
 		go gamepad.Listen(context.Background(), func(action gamepad.Action) {
@@ -488,6 +540,28 @@ func main() {
 					case "welcome":
 						player.ShowText(matrix.Text{Text: "WELCOME!"})
 						persist()
+					case "display:planet":
+						showControllerDisplay(player, sceneSpec{Mode: "planet", Planet: &planetRequest{Body: "tour", Label: true, Dwell: 15}}, persist)
+					case "display:solar":
+						showControllerDisplay(player, sceneSpec{Mode: "solarsystem", Solar: &solarRequest{Label: true}}, persist)
+					case "display:moon":
+						showControllerDisplay(player, sceneSpec{Mode: "moon", Moon: &moonRequest{}}, persist)
+					case "display:pokemon":
+						showControllerDisplay(player, sceneSpec{Mode: "pokemon", Pokemon: &pokemonRequest{Pokemon: "random", Label: true, Dwell: 15}}, persist)
+					case "display:starfront":
+						showControllerDisplay(player, sceneSpec{Mode: "starfront", Roof: &roofRequest{Refresh: 15}}, persist)
+					case "display:bytes":
+						showControllerDisplay(player, sceneSpec{Mode: "bytes", Bytes: &bytesRequest{Refresh: 30}}, persist)
+					case "display:citizen":
+						showControllerDisplay(player, sceneSpec{Mode: "citizen", Citizen: &citizenRequest{Zoom: true, Label: true, Dwell: 20}}, persist)
+					case "display:weather":
+						if lat, long, ok := configuredLocation(); ok {
+							showControllerDisplay(player, sceneSpec{Mode: "weather", Weather: &weatherRequest{Lat: lat, Long: long, Refresh: 600}}, persist)
+						}
+					case "display:prayer":
+						if lat, long, ok := configuredLocation(); ok {
+							showControllerDisplay(player, sceneSpec{Mode: "prayer", Prayer: &prayerRequest{Lat: &lat, Long: &long, Method: "ISNA"}}, persist)
+						}
 					case "off":
 						player.Clear()
 						persist()
