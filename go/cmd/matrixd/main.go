@@ -423,6 +423,7 @@ func main() {
 	if *useGamepad {
 		var controllerMu sync.Mutex
 		var previous matrix.Scene
+		var lastMenu *menu.Menu
 		menuPositions := make(map[string]int)
 		showMenu := func(title string, items []menu.Item) {
 			if current, ok := player.State().Scene.(*menu.Menu); ok {
@@ -536,7 +537,11 @@ func main() {
 			controllerMu.Lock()
 			defer controllerMu.Unlock()
 			if action == gamepad.Home {
-				openGlobal()
+				if _, alreadyInMenu := player.State().Scene.(*menu.Menu); alreadyInMenu || lastMenu == nil {
+					openGlobal()
+				} else {
+					player.Show(lastMenu)
+				}
 				return
 			}
 			if action == gamepad.Start {
@@ -562,6 +567,13 @@ func main() {
 					if kind, ok := strings.CutPrefix(item.ID, "config:"); ok {
 						openDisplayConfig(kind)
 						return
+					}
+					// Launching content remembers this exact menu object and cursor.
+					// Home from the content can therefore return here, rather than
+					// starting over at the root menu.
+					if strings.HasPrefix(item.ID, "display:") || strings.HasPrefix(item.ID, "scene:") ||
+						item.ID == "connect4" || item.ID == "tetris" || item.ID == "welcome" || item.ID == "off" {
+						lastMenu = m
 					}
 					switch item.ID {
 					case "games":
