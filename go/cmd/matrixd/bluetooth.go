@@ -45,7 +45,10 @@ func handleBluetooth(mux *http.ServeMux) {
 		}{scanning, devices})
 	})
 	mux.HandleFunc("POST /api/bluetooth/scan", func(w http.ResponseWriter, r *http.Request) {
-		api.startScan()
+		if err := api.startScan(); err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		writeJSON(w, map[string]bool{"scanning": true})
 	})
 	mux.HandleFunc("POST /api/bluetooth/pair", func(w http.ResponseWriter, r *http.Request) {
@@ -90,12 +93,20 @@ func handleBluetooth(mux *http.ServeMux) {
 	})
 }
 
-func (b *bluetoothAPI) startScan() {
+func (b *bluetoothAPI) startScan() error {
 	b.mu.Lock()
 	if b.scanning {
 		b.mu.Unlock()
-		return
+		return nil
 	}
+	b.mu.Unlock()
+	// Raspberry Pi OS may boot with Bluetooth soft-blocked. matrixd's appliance
+	// service runs as root, so make the adapter ready when the user asks to scan.
+	_ = exec.Command("rfkill", "unblock", "bluetooth").Run()
+	if out, err := exec.Command("bluetoothctl", "power", "on").CombinedOutput(); err != nil {
+		return commandError("enabling Bluetooth", out, err)
+	}
+	b.mu.Lock()
 	b.scanning = true
 	b.mu.Unlock()
 	go func() {
@@ -103,6 +114,7 @@ func (b *bluetoothAPI) startScan() {
 		// Discovery remains active while bluetoothctl is alive.
 		_ = exec.Command("bluetoothctl", "--timeout", "30", "scan", "on").Run()
 	}()
+	return nil
 }
 
 func listBluetoothDevices() ([]bluetoothDevice, error) {
@@ -110,7 +122,7 @@ func listBluetoothDevices() ([]bluetoothDevice, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Bluetooth is unavailable: %w", err)
 	}
-	var devices []bluetoothDevice
+	devices := make([]bluetoothDevice, 0)
 	s := bufio.NewScanner(strings.NewReader(string(out)))
 	for s.Scan() {
 		fields := strings.Fields(s.Text())
