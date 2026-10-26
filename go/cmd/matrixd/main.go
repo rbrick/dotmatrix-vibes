@@ -536,19 +536,12 @@ func main() {
 		go gamepad.Listen(context.Background(), func(action gamepad.Action) {
 			controllerMu.Lock()
 			defer controllerMu.Unlock()
-			if action == gamepad.Home {
+			if action == gamepad.Home || action == gamepad.Start {
 				if _, alreadyInMenu := player.State().Scene.(*menu.Menu); alreadyInMenu || lastMenu == nil {
 					openGlobal()
 				} else {
 					player.Show(lastMenu)
 				}
-				return
-			}
-			if action == gamepad.Start {
-				if _, inMenu := player.State().Scene.(*menu.Menu); !inMenu {
-					previous = player.State().Scene
-				}
-				openGames()
 				return
 			}
 			if m, ok := player.State().Scene.(*menu.Menu); ok {
