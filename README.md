@@ -207,6 +207,30 @@ Pokémon sprites are © Nintendo / Game Freak / Creatures; PokéSprite's data an
 
 Play on the panel from the control page (click a column, or ← → and Enter/Space/↓), against the computer (easy/normal/hard) or two players taking turns. The board is on the right; the left shows whose turn it is and the score. Games are saved, so a restart picks up mid-game.
 
+#### Bluetooth and USB controllers
+
+`matrixd` automatically discovers Linux game controllers, including Nintendo Switch Pro/Joy-Con and Xbox controllers, when they connect or reconnect. Press **Start/Menu/+** (or D-pad Up) to start a Connect 4 game against the computer, use the D-pad Left/Right to choose a column, and press any face button (A/B/X/Y) to drop a disc. USB controllers work immediately.
+
+Pair a Bluetooth controller once on the Pi (put the controller in pairing mode first):
+
+```bash
+sudo apt install bluez
+sudo systemctl enable --now bluetooth
+bluetoothctl
+# At the bluetoothctl prompt:
+power on
+agent on
+default-agent
+scan on
+# After your controller appears, replace XX:... with its address:
+pair XX:XX:XX:XX:XX:XX
+trust XX:XX:XX:XX:XX:XX
+connect XX:XX:XX:XX:XX:XX
+quit
+```
+
+A trusted controller reconnects automatically afterward. Hold the small Sync button on a Switch controller or the Pair button on an Xbox controller to enter pairing mode. Controller support is enabled by default; start `matrixd` with `-gamepad=false` to disable it.
+
 ```bash
 curl -d '{"vsComputer":true,"difficulty":"hard"}' localhost:8080/api/connect4/new
 curl -d '{"column":3}' localhost:8080/api/connect4/move

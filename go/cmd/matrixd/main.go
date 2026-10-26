@@ -93,6 +93,7 @@ import (
 	"time"
 
 	"dotmatrix/connect4"
+	"dotmatrix/gamepad"
 	"dotmatrix/matrix"
 	"dotmatrix/minecraft"
 	"dotmatrix/moonphase"
@@ -276,6 +277,7 @@ func main() {
 	clock24 := flag.Bool("clock24", false, "24-hour times on the prayer clock")
 	rotate := flag.Bool("rotate", false, "rotate through prayer times, planets and the moon phase at startup (needs -lat and -long)")
 	statePath := flag.String("state", defaultStatePath(), `file to save and restore the display state ("" to disable)`)
+	useGamepad := flag.Bool("gamepad", true, "listen for Linux game controllers")
 	flag.Parse()
 	explicit := map[string]bool{}
 	flag.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
@@ -404,6 +406,33 @@ func main() {
 	})
 
 	handleConnect4(mux, player, attachGame, persist)
+	if *useGamepad {
+		go gamepad.Listen(context.Background(), func(action gamepad.Action) {
+			g, _ := player.State().Scene.(*connect4.Game)
+			if action == gamepad.Start {
+				g = connect4.New(connect4.Options{VsComputer: true, Difficulty: connect4.Normal})
+				attachGame(g)
+				player.Show(g)
+				persist()
+				return
+			}
+			if g == nil {
+				return
+			}
+			switch action {
+			case gamepad.Left:
+				g.MoveCursor(-1)
+			case gamepad.Right:
+				g.MoveCursor(1)
+			case gamepad.Select:
+				if err := g.DropAtCursor(); err != nil {
+					log.Printf("gamepad move: %v", err)
+				}
+			}
+			player.Redraw()
+			persist()
+		})
+	}
 	handleScenes(mux, player, state, attachGame, persist)
 	mux.HandleFunc("POST /api/pokemon", func(w http.ResponseWriter, r *http.Request) {
 		var req pokemonRequest
