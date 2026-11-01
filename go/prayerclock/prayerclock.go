@@ -37,13 +37,27 @@ var (
 
 // New validates the settings and returns a Clock in the local time zone.
 func New(lat, long float64, method string, clock24 bool) (*Clock, error) {
+	return NewInTimezone(lat, long, method, clock24, "")
+}
+
+// NewInTimezone creates a clock using an IANA timezone such as
+// "America/Chicago". An empty timezone uses the host's native timezone.
+func NewInTimezone(lat, long float64, method string, clock24 bool, timezone string) (*Clock, error) {
 	if lat < -90 || lat > 90 || long < -180 || long > 180 {
 		return nil, fmt.Errorf("prayerclock: invalid coordinates %v, %v", lat, long)
 	}
 	if _, ok := prayer.Methods[method]; !ok {
 		return nil, fmt.Errorf("prayerclock: unknown method %q (have %s)", method, strings.Join(MethodNames(), ", "))
 	}
-	return &Clock{Lat: lat, Long: long, MethodName: method, Clock24: clock24, Location: time.Local}, nil
+	loc := time.Local
+	if timezone != "" {
+		var err error
+		loc, err = time.LoadLocation(timezone)
+		if err != nil {
+			return nil, fmt.Errorf("prayerclock: invalid timezone %q: %w", timezone, err)
+		}
+	}
+	return &Clock{Lat: lat, Long: long, MethodName: method, Clock24: clock24, Location: loc}, nil
 }
 
 // MethodNames lists the calculation methods New accepts.

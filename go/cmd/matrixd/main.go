@@ -121,17 +121,18 @@ type textRequest struct {
 }
 
 type prayerRequest struct {
-	Lat     *float64 `json:"lat"`
-	Long    *float64 `json:"long"`
-	Method  string   `json:"method"`
-	Clock24 bool     `json:"clock24"`
+	Lat      *float64 `json:"lat"`
+	Long     *float64 `json:"long"`
+	Method   string   `json:"method"`
+	Clock24  bool     `json:"clock24"`
+	Timezone string   `json:"timezone,omitempty"`
 }
 
 func (r prayerRequest) scene() (*prayerclock.Clock, error) {
 	if r.Method == "" {
 		r.Method = "ISNA"
 	}
-	return prayerclock.New(*r.Lat, *r.Long, r.Method, r.Clock24)
+	return prayerclock.NewInTimezone(*r.Lat, *r.Long, r.Method, r.Clock24, r.Timezone)
 }
 
 type planetRequest struct {
@@ -288,6 +289,7 @@ func main() {
 	long := flag.Float64("long", 0, "longitude for prayer times")
 	method := flag.String("method", "ISNA", "prayer calculation method: "+strings.Join(prayerclock.MethodNames(), ", "))
 	clock24 := flag.Bool("clock24", false, "24-hour times on the prayer clock")
+	timezone := flag.String("timezone", "", "IANA timezone for the prayer clock (default: host timezone)")
 	rotate := flag.Bool("rotate", false, "rotate through prayer times, planets and the moon phase at startup (needs -lat and -long)")
 	statePath := flag.String("state", defaultStatePath(), `file to save and restore the display state ("" to disable)`)
 	useGamepad := flag.Bool("gamepad", true, "listen for Linux game controllers")
@@ -316,14 +318,14 @@ func main() {
 	}
 	switch saved, err := state.load(); {
 	case *rotate:
-		r, err := defaultRotation(*lat, *long, *method, *clock24).scene()
+		r, err := defaultRotation(*lat, *long, *method, *clock24, *timezone).scene()
 		if err != nil {
 			log.Fatal(err)
 		}
 		player.Show(r)
 		persist()
 	case *showPrayer:
-		clock, err := prayerclock.New(*lat, *long, *method, *clock24)
+		clock, err := prayerclock.NewInTimezone(*lat, *long, *method, *clock24, *timezone)
 		if err != nil {
 			log.Fatal(err)
 		}

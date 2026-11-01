@@ -7,6 +7,19 @@ import (
 	"dotmatrix/matrix"
 )
 
+func TestTimezone(t *testing.T) {
+	c, err := NewInTimezone(41.8781, -87.6298, "ISNA", false, "America/Chicago")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Location.String(); got != "America/Chicago" {
+		t.Fatalf("location = %q", got)
+	}
+	if _, err := NewInTimezone(0, 0, "ISNA", false, "Not/A_Timezone"); err == nil {
+		t.Fatal("invalid timezone accepted")
+	}
+}
+
 func newYork(t *testing.T) *Clock {
 	c, err := New(40.7128, -74.0060, "ISNA", false)
 	if err != nil {

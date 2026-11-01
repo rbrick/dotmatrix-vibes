@@ -83,11 +83,11 @@ curl -X DELETE localhost:8080/api/scenes/Welcome
 Shows the current time with a time-of-day emoji (🌙 night, 🌅 Fajr to sunrise, ☀ day, 🌤 after Asr, 🌇 after Maghrib), then the next prayer, its time and a countdown. The calculation is `go/prayer` (imported from [this gist](https://gist.github.com/rbrick/e971ac3fbe69240da74aeb6cd3e68681)); the display is `go/prayerclock`.
 
 ```bash
-./bin/matrixd -prayer -lat 41.8781 -long -87.6298 -method ISNA     # start in prayer mode
-curl -d '{"lat":41.8781,"long":-87.6298,"method":"ISNA","clock24":false}' localhost:8080/api/prayer
+./bin/matrixd -prayer -lat 41.8781 -long -87.6298 -method ISNA -timezone America/Chicago
+curl -d '{"lat":41.8781,"long":-87.6298,"method":"ISNA","clock24":false,"timezone":"America/Chicago"}' localhost:8080/api/prayer
 ```
 
-Methods: `ISNA`, `MWL`, `EGAS`, `Karachi`, `UAE`, `Kuwait`. The control page groups controls into tabs. Set latitude/longitude once in the **Location** section of the Weather tab (or choose **Use my location**); weather and prayer times share those coordinates, which are saved in this browser.
+Methods: `ISNA`, `MWL`, `EGAS`, `Karachi`, `UAE`, `Kuwait`. `timezone` accepts an IANA name such as `America/Chicago` or `Asia/Dubai`; omit it to use the server's native timezone. The control page groups controls into tabs. Set latitude/longitude once in the **Location** section of the Weather tab (or choose **Use my location**); weather and prayer times share those coordinates, which are saved in this browser.
 
 ### Weather scene
 

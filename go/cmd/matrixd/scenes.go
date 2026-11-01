@@ -199,7 +199,11 @@ func specOf(scene matrix.Scene) (sceneSpec, bool) {
 			Align: string(sc.Align), Scroll: string(sc.Scroll), Speed: sc.Speed,
 		}}, true
 	case *prayerclock.Clock:
-		return sceneSpec{Mode: "prayer", Prayer: &prayerRequest{Lat: &sc.Lat, Long: &sc.Long, Method: sc.MethodName, Clock24: sc.Clock24}}, true
+		timezone := ""
+		if sc.Location != nil && sc.Location != time.Local {
+			timezone = sc.Location.String()
+		}
+		return sceneSpec{Mode: "prayer", Prayer: &prayerRequest{Lat: &sc.Lat, Long: &sc.Long, Method: sc.MethodName, Clock24: sc.Clock24, Timezone: timezone}}, true
 	case *planets.Scene:
 		return sceneSpec{Mode: "planet", Planet: &planetRequest{Body: sc.Body, Label: sc.Label, Speed: sc.Speed, Dwell: sc.Dwell.Seconds()}}, true
 	case *pokemon.Scene:
@@ -275,9 +279,13 @@ func (r rotationRequest) scene() (*rotation, error) {
 
 // defaultRotation is what -rotate shows: prayer times for three minutes,
 // then the next planet of the tour, then the Moon's phase.
-func defaultRotation(lat, long float64, method string, clock24 bool) rotationRequest {
+func defaultRotation(lat, long float64, method string, clock24 bool, timezones ...string) rotationRequest {
+	timezone := ""
+	if len(timezones) != 0 {
+		timezone = timezones[0]
+	}
 	return rotationRequest{Items: []rotationItem{
-		{sceneSpec{Mode: "prayer", Prayer: &prayerRequest{Lat: &lat, Long: &long, Method: method, Clock24: clock24}}, 180},
+		{sceneSpec{Mode: "prayer", Prayer: &prayerRequest{Lat: &lat, Long: &long, Method: method, Clock24: clock24, Timezone: timezone}}, 180},
 		// One planet per turn: the tour moves on by one each time round.
 		{sceneSpec{Mode: "planet", Planet: &planetRequest{Body: planets.Tour, Label: true, Dwell: 20}}, 20},
 		{sceneSpec{Mode: "moon", Moon: &moonRequest{South: lat < 0}}, 20},

@@ -126,8 +126,11 @@
           <option value="Kuwait">Kuwait</option>
         </select>
       </label>
+      <label>Timezone <input type="text" id="timezone" placeholder="Native (e.g. America/Chicago)" list="timezones"></label>
+      <datalist id="timezones"><option value="UTC"><option value="America/New_York"><option value="America/Chicago"><option value="America/Denver"><option value="America/Los_Angeles"><option value="Europe/London"><option value="Europe/Paris"><option value="Asia/Dubai"><option value="Asia/Karachi"><option value="Asia/Tokyo"><option value="Australia/Sydney"></datalist>
       <label class="check"><input type="checkbox" id="clock24"> 24-hour clock</label>
     </div>
+    <p class="hint" style="margin:0">Leave timezone blank to use the server's native timezone. Use an IANA name for another zone.</p>
     <div class="buttons"><button type="submit">Show prayer times</button></div>
   </form>
 
@@ -401,6 +404,7 @@ $("pf").addEventListener("submit", e => {
   call("/api/prayer", {
     ...loc,
     method: $("method").value, clock24: $("clock24").checked,
+    timezone: $("timezone").value.trim(),
   });
 });
 function setLocation(lat, long) {
@@ -563,7 +567,7 @@ const views = [
     } },
   { mode: "prayer", label: "Prayer times", seconds: 180, on: true, spec: () => {
       const loc = locationValues(false); if (!loc) throw "Set a valid location first.";
-      return { ...loc, method: $("method").value, clock24: $("clock24").checked };
+      return { ...loc, method: $("method").value, clock24: $("clock24").checked, timezone: $("timezone").value.trim() };
     } },
   // The tour moves on one planet per turn when its dwell matches the view's time.
   { mode: "planet", label: "Planet", seconds: 20, on: true, spec: secs =>
@@ -623,6 +627,7 @@ function loadSpec(s) {
     setLocation(s.prayer.lat, s.prayer.long);
     $("method").value = s.prayer.method;
     $("clock24").checked = s.prayer.clock24;
+    $("timezone").value = s.prayer.timezone || "";
   }
   if (s.moon) $("msouth").checked = s.moon.south;
   if (s.weather) {
