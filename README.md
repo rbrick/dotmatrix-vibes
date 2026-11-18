@@ -168,6 +168,15 @@ curl -X POST localhost:8080/api/moon
 curl -d '{"south":true}' localhost:8080/api/moon     # southern hemisphere: waxing Moon lit on the left
 ```
 
+### Fractals
+
+Colourful animated fractals. **Mandelbrot** dives from the whole set into one of eight spots on its edge (Seahorse Valley, Elephant Valley, the triple spirals and more), 20,000× deep, and back out again in 30 seconds, then picks the next with a new palette. **Julia** sweeps its constant around the edge of the Mandelbrot set's main cardioid, so the set melts between spirals, rabbits, dendrites and starbursts while slowly turning. **Both** (the default) takes turns. Colours come from smooth escape counts run through cycling cosine palettes; pixels along sharp edges are supersampled to stop them glittering. The code is `go/fractal`.
+
+```bash
+curl -X POST localhost:8080/api/fractal                              # both, taking turns
+curl -d '{"set":"julia","speed":2}' localhost:8080/api/fractal       # just Julia sets, twice as fast
+```
+
 ### Rotation
 
 Takes turns between views, fading from one to the next. Each view picks up where it left off, so a planet `tour` shows the next planet on each turn.
@@ -185,7 +194,7 @@ curl -d '{"items":[
 ]}' localhost:8080/api/rotation
 ```
 
-Each item is a `mode` (`prayer`, `planet`, `moon`, `solarsystem`, `minecraft`, `starfront`, `bytes`, `citizen`, `pokemon` or `text`), that mode's settings (the same as its own endpoint), and `seconds`. On the control page, tick the views in the Rotation section; each uses the settings in its own section.
+Each item is a `mode` (`prayer`, `planet`, `moon`, `solarsystem`, `minecraft`, `starfront`, `bytes`, `citizen`, `fractal`, `pokemon` or `text`), that mode's settings (the same as its own endpoint), and `seconds`. On the control page, tick the views in the Rotation section; each uses the settings in its own section.
 
 ### Pokémon
 
@@ -209,7 +218,7 @@ Play on the panel from the control page (click a column, or ← → and Enter/Sp
 
 #### Bluetooth and USB controllers
 
-`matrixd` automatically discovers Linux game controllers, including Nintendo Switch Pro/Joy-Con and Xbox controllers, when they connect or reconnect. Press **Start/Menu/+** or **Home/Guide** to return to the last controller menu (press it again from a menu for the root menu), then choose with the D-pad and any face button. The Games submenu includes **Connect 4** and **Block Drop** (a falling-block puzzle: Left/Right move, Down drops, Up/A/B/X/Y rotates). Its **Displays** submenu lets you configure and switch directly between Planets, Solar System, Moon Phase, Pokémon, Starfront, $BYTES, Citizens, the welcome display, or any scene saved from the website. Each display opens a controller-friendly options menu (for example planet, time-lapse speed, hemisphere, shiny Pokémon, building, refresh rate, or season). Weather and Prayer Clock appear only after a location has been configured in one of those displays, and offer preview/method choices. Menus remember their previous selection, long items scroll automatically, and the controller's B button goes back (with the correct Nintendo/Xbox button layout). You can also resume the previous display or turn the panel off. USB controllers work immediately.
+`matrixd` automatically discovers Linux game controllers, including Nintendo Switch Pro/Joy-Con and Xbox controllers, when they connect or reconnect. Press **Start/Menu/+** or **Home/Guide** to return to the last controller menu (press it again from a menu for the root menu), then choose with the D-pad and any face button. The Games submenu includes **Connect 4** and **Block Drop** (a falling-block puzzle: Left/Right move, Down drops, Up/A/B/X/Y rotates). Its **Displays** submenu lets you configure and switch directly between Planets, Solar System, Moon Phase, Fractals, Pokémon, Starfront, $BYTES, Citizens, the welcome display, or any scene saved from the website. Each display opens a controller-friendly options menu (for example planet, time-lapse speed, hemisphere, fractal set, shiny Pokémon, building, refresh rate, or season). Weather and Prayer Clock appear only after a location has been configured in one of those displays, and offer preview/method choices. Menus remember their previous selection, long items scroll automatically, and the controller's B button goes back (with the correct Nintendo/Xbox button layout). You can also resume the previous display or turn the panel off. USB controllers work immediately.
 
 Pair a Bluetooth controller once on the Pi (put the controller in pairing mode first):
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"dotmatrix/fractal"
 	"dotmatrix/matrix"
 	"dotmatrix/minecraft"
 	"dotmatrix/moonphase"
@@ -23,7 +24,7 @@ import (
 // shows, or one view of a rotation. Mode says which of the other fields is
 // set.
 type sceneSpec struct {
-	Mode    string          `json:"mode"` // "text", "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes" or "citizen"
+	Mode    string          `json:"mode"` // "text", "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen" or "fractal"
 	Text    *textRequest    `json:"text,omitempty"`
 	Prayer  *prayerRequest  `json:"prayer,omitempty"`
 	Planet  *planetRequest  `json:"planet,omitempty"`
@@ -35,6 +36,16 @@ type sceneSpec struct {
 	Bytes   *bytesRequest   `json:"bytes,omitempty"`
 	Citizen *citizenRequest `json:"citizen,omitempty"`
 	Weather *weatherRequest `json:"weather,omitempty"`
+	Fractal *fractalRequest `json:"fractal,omitempty"`
+}
+
+type fractalRequest struct {
+	Set   string  `json:"set,omitempty"`   // "mandelbrot", "julia" or "both" (default)
+	Speed float64 `json:"speed,omitempty"` // animation speed, up to 10; default 1
+}
+
+func (r fractalRequest) scene() (*fractal.Scene, error) {
+	return fractal.New(fractal.Options{Set: r.Set, Speed: r.Speed})
 }
 
 type weatherRequest struct {
@@ -186,6 +197,11 @@ func (s sceneSpec) build() (matrix.Scene, error) {
 			return nil, missing()
 		}
 		return s.Weather.scene()
+	case "fractal":
+		if s.Fractal == nil {
+			return nil, missing()
+		}
+		return s.Fractal.scene()
 	}
 	return nil, fmt.Errorf("unknown mode %q", s.Mode)
 }
@@ -224,6 +240,8 @@ func specOf(scene matrix.Scene) (sceneSpec, bool) {
 		return sceneSpec{Mode: "solarsystem", Solar: &solarRequest{Speed: sc.Speed, Label: sc.Label}}, true
 	case *weather.Scene:
 		return sceneSpec{Mode: "weather", Weather: &weatherRequest{Lat: sc.Lat, Long: sc.Long, Refresh: sc.Interval.Seconds(), Preview: sc.Preview, WeatherPreview: sc.WeatherPreview}}, true
+	case *fractal.Scene:
+		return sceneSpec{Mode: "fractal", Fractal: &fractalRequest{Set: sc.Set, Speed: sc.Speed}}, true
 	}
 	return sceneSpec{}, false
 }

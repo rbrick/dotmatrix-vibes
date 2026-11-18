@@ -50,11 +50,14 @@
 //	                      a Neo Tokyo Citizen from citgen.rcw.io (downloaded once, then
 //	                      cached); id 0 shows a random one every dwell seconds, from
 //	                      season 1 or 2, or either when season is 0
+//	POST /api/fractal     {"set":"both"|"mandelbrot"|"julia","speed":1}
+//	                      colourful animated fractals: Mandelbrot zooms and morphing
+//	                      Julia sets, taking turns with "both"; speed up to 10
 //	POST /api/rotation    {"items":[{"mode":"prayer","prayer":{...},"seconds":180},
 //	                                {"mode":"planet","planet":{...},"seconds":20},
 //	                                {"mode":"moon","moon":{},"seconds":20}]}
 //	                      takes turns showing views; each item is a mode ("text",
-//	                      "prayer", "weather", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes" or "citizen") with
+//	                      "prayer", "weather", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen" or "fractal") with
 //	                      the same
 //	                      settings as that mode's endpoint
 //	GET    /api/scenes             saved scenes: [{"name":"Welcome","mode":"text",...}, ...]
@@ -488,6 +491,7 @@ func main() {
 				{ID: "config:planet", Label: "PLANETS"},
 				{ID: "config:solar", Label: "SOLAR SYSTEM"},
 				{ID: "config:moon", Label: "MOON PHASE"},
+				{ID: "config:fractal", Label: "FRACTALS"},
 				{ID: "config:pokemon", Label: "POKEMON"},
 				{ID: "config:starfront", Label: "STARFRONT"},
 				{ID: "config:bytes", Label: "BYTES PRICE"},
@@ -514,6 +518,8 @@ func main() {
 				items = []menu.Item{{ID: "display:solar:0", Label: "LIVE"}, {ID: "display:solar:1", Label: "1 DAY / SEC"}, {ID: "display:solar:30", Label: "30 DAYS / SEC"}}
 			case "moon":
 				items = []menu.Item{{ID: "display:moon:north", Label: "NORTHERN"}, {ID: "display:moon:south", Label: "SOUTHERN"}}
+			case "fractal":
+				items = []menu.Item{{ID: "display:fractal:both", Label: "BOTH"}, {ID: "display:fractal:mandelbrot", Label: "MANDELBROT"}, {ID: "display:fractal:julia", Label: "JULIA"}}
 			case "pokemon":
 				items = []menu.Item{{ID: "display:pokemon:normal", Label: "RANDOM"}, {ID: "display:pokemon:shiny", Label: "RANDOM SHINY"}}
 			case "starfront":
@@ -620,6 +626,8 @@ func main() {
 								showControllerDisplay(player, sceneSpec{Mode: "solarsystem", Solar: &solarRequest{Speed: speed, Label: true}}, persist)
 							case "moon":
 								showControllerDisplay(player, sceneSpec{Mode: "moon", Moon: &moonRequest{South: value == "south"}}, persist)
+							case "fractal":
+								showControllerDisplay(player, sceneSpec{Mode: "fractal", Fractal: &fractalRequest{Set: value}}, persist)
 							case "pokemon":
 								showControllerDisplay(player, sceneSpec{Mode: "pokemon", Pokemon: &pokemonRequest{Pokemon: "random", Shiny: value == "shiny", Label: true, Dwell: 15}}, persist)
 							case "starfront":
@@ -903,6 +911,21 @@ func main() {
 			return
 		}
 		player.Show(orrery.New(orrery.Options{Speed: req.Speed, Label: req.Label}))
+		persist()
+		writeState(w, player)
+	})
+	mux.HandleFunc("POST /api/fractal", func(w http.ResponseWriter, r *http.Request) {
+		var req fractalRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody)).Decode(&req); err != nil && err != io.EOF {
+			http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		s, err := req.scene()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		player.Show(s)
 		persist()
 		writeState(w, player)
 	})

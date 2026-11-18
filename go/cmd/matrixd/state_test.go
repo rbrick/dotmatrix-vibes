@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"dotmatrix/connect4"
+	"dotmatrix/fractal"
 	"dotmatrix/matrix"
 	"dotmatrix/minecraft"
 	"dotmatrix/moonphase"
@@ -80,6 +81,13 @@ func TestStateRoundTrip(t *testing.T) {
 			p.Show(s)
 		},
 		"solarsystem": func(p *matrix.Player) { p.Show(orrery.New(orrery.Options{Speed: 7, Label: true})) },
+		"fractal": func(p *matrix.Player) {
+			s, err := fractal.New(fractal.Options{Set: fractal.Julia, Speed: 2.5})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p.Show(s)
+		},
 		"rotation": func(p *matrix.Player) {
 			req := defaultRotation(-33.87, 151.21, "MWL", false)
 			req.Items = append(req.Items, rotationItem{sceneSpec{Mode: "text", Text: &textRequest{Text: "HI"}}, 5})
