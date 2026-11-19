@@ -1,6 +1,6 @@
 // Package aurora draws the northern lights as a matrix.Scene: folded
-// curtains of light that ripple and drift over a dark, starry sky above a
-// silhouette of hills and pines, reflected in a still lake.
+// curtains of light that ripple and drift over a dark, starry sky above
+// snow-capped mountains and a pine treeline, all mirrored in a lake.
 //
 // Each curtain glows like a real aurora, where the colour depends on
 // height: a thin blue-violet fringe along the bottom edge (nitrogen), a
@@ -42,8 +42,8 @@ func New(o Options) (*Scene, error) {
 
 const frameInterval = time.Second / 25
 
-// The lake's shore: rows from here down mirror the sky.
-const shore = 27
+// The lake's shore: rows from here down mirror everything above.
+const shore = 23
 
 // curtain is one fold of the aurora. Its lower edge waves across the sky;
 // the light fades upwards from it over height pixels.
@@ -71,13 +71,13 @@ var (
 
 var curtains = []curtain{
 	// High and faint, mostly red: the crown of a big display.
-	{base: 10, height: 6, waves: [3]wave{{3.0, 0.07, 0.21, 0}, {1.5, 0.17, -0.33, 1}, {0.6, 0.41, 0.8, 2}},
+	{base: 7, height: 6, waves: [3]wave{{3.0, 0.07, 0.21, 0}, {1.5, 0.17, -0.33, 1}, {0.6, 0.41, 0.8, 2}},
 		bottom: magenta, body: red, top: red, glow: 0.75, sweep: wave{1, 0.09, -0.5, 0}},
 	// The main curtain: violet fringe, bright green, red crown.
-	{base: 18, height: 9, waves: [3]wave{{4.5, 0.09, 0.27, 2}, {2.0, 0.21, -0.41, 0}, {0.7, 0.53, 1.1, 4}},
+	{base: 13, height: 8, waves: [3]wave{{4.5, 0.09, 0.27, 2}, {2.0, 0.21, -0.41, 0}, {0.7, 0.53, 1.1, 4}},
 		bottom: violet, body: green, top: red, glow: 1.2, sweep: wave{1, 0.11, 0.7, 1}},
 	// A lower, blue fold in front.
-	{base: 23, height: 5, waves: [3]wave{{2.5, 0.12, -0.31, 4}, {1.2, 0.27, 0.5, 3}, {0.5, 0.61, -1.3, 1}},
+	{base: 17, height: 5, waves: [3]wave{{2.5, 0.12, -0.31, 4}, {1.2, 0.27, 0.5, 3}, {0.5, 0.61, -1.3, 1}},
 		bottom: violet, body: blue, top: teal, glow: 1.1, sweep: wave{1, 0.14, -0.9, 3}},
 }
 
@@ -132,39 +132,56 @@ var stars = func() []star {
 	s := make([]star, 34)
 	for i := range s {
 		s[i] = star{
-			x: float64(r.Intn(matrix.Width)), y: float64(r.Intn(shore - 4)),
+			x: float64(r.Intn(matrix.Width)), y: float64(r.Intn(shore - 9)),
 			bright: 0.25 + 0.55*r.Float64(), rate: 1 + 3*r.Float64(), phase: 6.3 * r.Float64(),
 		}
 	}
 	return s
 }()
 
-// land is the height of the hills and trees above the shore at each column.
-var land = func() [matrix.Width]int {
-	var h [matrix.Width]int
-	for x := range h {
+// peaks are the mountain range behind the lake: x, top row, steepness.
+var peaks = [][3]float64{{10, 11, 1.0}, {29, 14, 1.1}, {46, 12, 0.9}, {62, 15, 1.2}}
+
+// ridge is the top row of the mountains in each column, and slope tells
+// which way the ground faces there: -1 rising to the right (lit), +1
+// falling (in shadow).
+var ridge, slope = func() (top [matrix.Width]int, side [matrix.Width]float64) {
+	for x := range top {
 		fx := float64(x)
-		hill := 2.2 + 1.6*math.Sin(fx*0.11+0.6) + 0.9*math.Sin(fx*0.29+2)
-		h[x] = int(math.Max(1, hill))
+		best := float64(shore)
+		for _, p := range peaks {
+			h := p[1] + math.Abs(fx-p[0])*p[2]
+			if h < best {
+				best = h
+				side[x] = math.Copysign(1, fx-p[0])
+			}
+		}
+		// A little crag.
+		best += 0.6 * math.Sin(fx*1.3)
+		top[x] = int(math.Min(shore-2, math.Round(best)))
 	}
-	// Pines: a pointed tip, widening downwards.
-	for _, p := range [][2]int{{6, 7}, {9, 5}, {44, 8}, {48, 6}, {51, 4}, {58, 6}} {
-		for dx := -2; dx <= 2; dx++ {
-			x := p[0] + dx
-			if x < 0 || x >= matrix.Width {
-				continue
-			}
-			th := p[1] - 2*abs(dx)
-			if dx == 0 {
-				th = p[1]
-			}
-			if th > h[x] {
-				h[x] = th
+	return
+}()
+
+// summit is the top row of the peak each column belongs to.
+var summit = func() (top [matrix.Width]int) {
+	for x := range top {
+		fx, best := float64(x), math.Inf(1)
+		for _, p := range peaks {
+			if h := p[1] + math.Abs(fx-p[0])*p[2]; h < best {
+				best, top[x] = h, int(p[1])
 			}
 		}
 	}
-	return h
+	return
 }()
+
+// pine is the treeline's colour: black, in silhouette against the dimly
+// lit mountains behind.
+var pine = [3]float64{0, 0.01, 0.005}
+
+// pines stand along the shore: x and height.
+var pines = [][2]int{{2, 5}, {5, 7}, {8, 4}, {19, 3}, {22, 5}, {36, 4}, {39, 6}, {42, 3}, {54, 5}, {57, 7}, {60, 4}}
 
 func abs(n int) int {
 	if n < 0 {
@@ -181,50 +198,105 @@ func (s *Scene) Render(c *matrix.Canvas, elapsed time.Duration) time.Duration {
 	}
 	t := elapsed.Seconds() * speed
 
-	var sky [shore][matrix.Width][3]float64
+	// Build the picture in linear light, then mirror it into the lake.
+	var img [matrix.Height][matrix.Width][3]float64
 	for y := 0; y < shore; y++ {
-		// Deep blue night, a little lighter towards the horizon.
+		// Night: dark enough that the panel leaves it off, so the
+		// mountains and the aurora stand out against black. (The panel has
+		// 16 levels a channel and lights anything brighter than about 16/255
+		// at its lowest level, which would turn a dim sky solid navy.)
 		h := float64(y) / shore
-		base := [3]float64{0.0, 0.01 + 0.02*h, 0.04 + 0.06*h}
+		base := [3]float64{0.0, 0.002 * h, 0.006 * h}
 		for x := 0; x < matrix.Width; x++ {
 			l := light(float64(x), float64(y), t)
 			for i := range l {
-				sky[y][x][i] = base[i] + l[i]
+				img[y][x][i] = base[i] + l[i]
 			}
 		}
 	}
 	for _, st := range stars {
 		tw := st.bright * (0.6 + 0.4*math.Sin(st.rate*t+st.phase))
-		p := &sky[int(st.y)][int(st.x)]
+		p := &img[int(st.y)][int(st.x)]
 		for i := range p {
 			p[i] += tw * [3]float64{0.8, 0.85, 1}[i]
 		}
 	}
 
-	for y := 0; y < shore; y++ {
-		for x := 0; x < matrix.Width; x++ {
-			c.Pix[y][x] = tone(sky[y][x], 1)
-		}
-	}
-	// The lake mirrors the sky above the shore, rippling and darker.
-	for y := shore; y < matrix.Height; y++ {
-		depth := y - shore
-		for x := 0; x < matrix.Width; x++ {
-			ripple := int(math.Round(0.7 * math.Sin(float64(y)*1.7+t*1.3+float64(x)*0.05)))
-			sx := x + ripple
-			if sx < 0 {
-				sx = 0
-			} else if sx >= matrix.Width {
-				sx = matrix.Width - 1
-			}
-			sy := shore - 1 - depth - 3 // reflect from above the hills
-			c.Pix[y][x] = tone(sky[sy][sx], 0.7-0.1*float64(depth))
-		}
-	}
-	// Hills and pines in silhouette, standing on the shore.
+	// Mountains: snow catches the aurora's colour from the sky above.
 	for x := 0; x < matrix.Width; x++ {
-		for y := shore - land[x]; y < shore; y++ {
-			c.Pix[y][x] = color.RGBA{2, 3, 6, 255}
+		var glow [3]float64
+		for y := 2; y < 12; y++ {
+			for i := range glow {
+				glow[i] += img[y][x][i] / 10
+			}
+		}
+		// A dark silhouette against the aurora, lit just enough for the
+		// panel to show it (black would vanish into the night sky), with
+		// the far side of each peak a shade darker.
+		body := [3]float64{0.07, 0.10, 0.26}
+		if slope[x] > 0 {
+			body = [3]float64{0.05, 0.07, 0.21}
+		}
+		for y := ridge[x]; y < shore; y++ {
+			var col [3]float64
+			switch {
+			case y == ridge[x]:
+				// The skyline catches the aurora's light, outlining the range.
+				for i := range col {
+					col[i] = 0.12 + body[i] + glow[i]*0.9
+				}
+			case y-summit[x] < 3 && y-ridge[x] < 2:
+				// A little snow on the summits.
+				for i := range col {
+					col[i] = [3]float64{0.22, 0.26, 0.40}[i] + glow[i]*0.4
+				}
+			default:
+				for i := range col {
+					col[i] = body[i] + glow[i]*0.08
+				}
+			}
+			img[y][x] = col
+		}
+	}
+	// A dark treeline along the shore.
+	for _, p := range pines {
+		for k := 0; k < p[1]; k++ {
+			y := shore - p[1] + k
+			half := k / 2
+			if k == p[1]-1 {
+				half = 0 // the trunk
+			}
+			for dx := -half; dx <= half; dx++ {
+				if x := p[0] + dx; x >= 0 && x < matrix.Width {
+					img[y][x] = pine
+				}
+			}
+		}
+	}
+	for x := 0; x < matrix.Width; x++ {
+		img[shore-1][x] = pine
+	}
+
+	// The lake mirrors it all, darker and bluer, rippling more further out.
+	for y := shore; y < matrix.Height; y++ {
+		depth := float64(y - shore)
+		sy := 2*shore - 1 - y
+		for x := 0; x < matrix.Width; x++ {
+			ripple := (0.2 + depth*0.12) * math.Sin(depth*1.9+t*1.5+float64(x)*0.07)
+			sx := min(max(int(math.Round(float64(x)+ripple)), 0), matrix.Width-1)
+			src := img[sy][sx]
+			// Light streaks drifting across the water.
+			streak := math.Pow(math.Max(0, math.Sin(float64(x)*0.25-t*0.8+depth*2.3)), 12) * 0.25
+			gain := 0.85 - 0.035*depth
+			for i := range src {
+				img[y][x][i] = src[i]*gain + streak*[3]float64{0.5, 0.7, 1}[i]
+			}
+		}
+	}
+
+	for y := range img {
+		for x := range img[y] {
+			c.Pix[y][x] = tone(img[y][x], 1)
 		}
 	}
 	return frameInterval

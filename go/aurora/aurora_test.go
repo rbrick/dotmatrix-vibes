@@ -1,6 +1,7 @@
 package aurora
 
 import (
+	"image/color"
 	"testing"
 	"time"
 
@@ -55,13 +56,49 @@ func TestColoursAndMotion(t *testing.T) {
 	}
 }
 
-func TestSilhouetteIsDark(t *testing.T) {
+// The treeline is black: the darkest layer, in front of the mountains.
+func TestTreeline(t *testing.T) {
 	s, _ := New(Options{})
 	c := matrix.NewCanvas()
 	s.Render(c, 10*time.Second)
 	for x := 0; x < matrix.Width; x++ {
-		if p := c.Pix[shore-1][x]; p.R+p.G+p.B > 30 {
-			t.Errorf("shore at column %d is lit: %v", x, p)
+		if q := matrix.Quantize(c.Pix[shore-1][x]); q != 0 {
+			t.Errorf("shore at column %d is lit: %v", x, c.Pix[shore-1][x])
 		}
 	}
+}
+
+// The mountains are a dark silhouette, but every pixel of them is lit on
+// the panel (none go off and vanish into the sky), and the skyline is
+// brighter than the slopes below it.
+func TestMountainsShowOnPanel(t *testing.T) {
+	s, _ := New(Options{})
+	c := matrix.NewCanvas()
+	s.Render(c, 10*time.Second)
+	level := func(p color.RGBA) uint16 {
+		q := matrix.Quantize(p)
+		return max(q>>8&15, q>>4&15, q&15)
+	}
+	for x := 0; x < matrix.Width; x++ {
+		for y := ridge[x]; y < shore-1; y++ {
+			if onPine(x, y) {
+				continue
+			}
+			if l := level(c.Pix[y][x]); l == 0 || (y > ridge[x]+2 && l > 3) {
+				t.Errorf("mountain at (%d,%d) is %v: level %d, want a dim silhouette the panel lights", x, y, c.Pix[y][x], l)
+			}
+		}
+		if y := ridge[x]; !onPine(x, y) && level(c.Pix[y][x]) <= level(c.Pix[shore-3][x]) && !onPine(x, shore-3) {
+			t.Errorf("skyline at column %d isn't brighter than the slope below", x)
+		}
+	}
+}
+
+func onPine(x, y int) bool {
+	for _, p := range pines {
+		if y >= shore-p[1] && abs(x-p[0]) <= p[1]/2 {
+			return true
+		}
+	}
+	return false
 }

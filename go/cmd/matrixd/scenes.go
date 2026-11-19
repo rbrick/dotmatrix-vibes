@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"dotmatrix/aquarium"
 	"dotmatrix/aurora"
 	"dotmatrix/fractal"
 	"dotmatrix/matrix"
@@ -25,21 +26,25 @@ import (
 // shows, or one view of a rotation. Mode says which of the other fields is
 // set.
 type sceneSpec struct {
-	Mode    string          `json:"mode"` // "text", "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal" or "aurora"
-	Text    *textRequest    `json:"text,omitempty"`
-	Prayer  *prayerRequest  `json:"prayer,omitempty"`
-	Planet  *planetRequest  `json:"planet,omitempty"`
-	Pokemon *pokemonRequest `json:"pokemon,omitempty"`
-	Moon    *moonRequest    `json:"moon,omitempty"`
-	Solar   *solarRequest   `json:"solarsystem,omitempty"`
-	MC      *mcRequest      `json:"minecraft,omitempty"`
-	Roof    *roofRequest    `json:"starfront,omitempty"`
-	Bytes   *bytesRequest   `json:"bytes,omitempty"`
-	Citizen *citizenRequest `json:"citizen,omitempty"`
-	Weather *weatherRequest `json:"weather,omitempty"`
-	Fractal *fractalRequest `json:"fractal,omitempty"`
-	Aurora  *auroraRequest  `json:"aurora,omitempty"`
+	Mode     string           `json:"mode"` // "text", "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal", "aurora" or "aquarium"
+	Text     *textRequest     `json:"text,omitempty"`
+	Prayer   *prayerRequest   `json:"prayer,omitempty"`
+	Planet   *planetRequest   `json:"planet,omitempty"`
+	Pokemon  *pokemonRequest  `json:"pokemon,omitempty"`
+	Moon     *moonRequest     `json:"moon,omitempty"`
+	Solar    *solarRequest    `json:"solarsystem,omitempty"`
+	MC       *mcRequest       `json:"minecraft,omitempty"`
+	Roof     *roofRequest     `json:"starfront,omitempty"`
+	Bytes    *bytesRequest    `json:"bytes,omitempty"`
+	Citizen  *citizenRequest  `json:"citizen,omitempty"`
+	Weather  *weatherRequest  `json:"weather,omitempty"`
+	Fractal  *fractalRequest  `json:"fractal,omitempty"`
+	Aurora   *auroraRequest   `json:"aurora,omitempty"`
+	Aquarium *aquariumRequest `json:"aquarium,omitempty"`
 }
+
+// aquariumRequest has no settings: the tank always has the same fish.
+type aquariumRequest struct{}
 
 type auroraRequest struct {
 	Speed float64 `json:"speed,omitempty"` // animation speed, up to 10; default 1
@@ -217,6 +222,11 @@ func (s sceneSpec) build() (matrix.Scene, error) {
 			return nil, missing()
 		}
 		return s.Aurora.scene()
+	case "aquarium":
+		if s.Aquarium == nil {
+			return nil, missing()
+		}
+		return aquarium.New(), nil
 	}
 	return nil, fmt.Errorf("unknown mode %q", s.Mode)
 }
@@ -259,6 +269,8 @@ func specOf(scene matrix.Scene) (sceneSpec, bool) {
 		return sceneSpec{Mode: "fractal", Fractal: &fractalRequest{Set: sc.Set, Speed: sc.Speed}}, true
 	case *aurora.Scene:
 		return sceneSpec{Mode: "aurora", Aurora: &auroraRequest{Speed: sc.Speed}}, true
+	case *aquarium.Scene:
+		return sceneSpec{Mode: "aquarium", Aquarium: &aquariumRequest{}}, true
 	}
 	return sceneSpec{}, false
 }

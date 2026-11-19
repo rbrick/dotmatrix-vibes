@@ -8,6 +8,10 @@
 //	POST /api/brightness  {"brightness":0-255}
 //	POST /api/clear
 //	GET  /api/state
+//	GET  /api/frame/stream  server-sent events, one per new frame (up to 20 a
+//	                      second): "brightness,base64" where the base64 is 64×32
+//	                      RGB bytes, row by row from the top left, at the panel's
+//	                      16 levels a channel (0, 17, 34 … 255)
 //	GET  /api/emoji       built-in emoji: [{"name":"heart","char":"❤"}, ...]
 //	POST /api/prayer      {"lat":40.71,"long":-74.01,"method":"ISNA","clock24":false}
 //	                      shows the next prayer time and a time-of-day emoji
@@ -55,12 +59,15 @@
 //	                      Julia sets, taking turns with "both"; speed up to 10
 //	POST /api/aurora      {"speed":1}
 //	                      the northern lights: rippling red, green and blue curtains
-//	                      over hills and a lake; speed up to 10
+//	                      over mountains and a lake; speed up to 10
+//	POST /api/aquarium    {}
+//	                      a reef tank: clownfish round their anemone, blue tangs and
+//	                      a betta swimming over sand, seaweed and bubbles
 //	POST /api/rotation    {"items":[{"mode":"prayer","prayer":{...},"seconds":180},
 //	                                {"mode":"planet","planet":{...},"seconds":20},
 //	                                {"mode":"moon","moon":{},"seconds":20}]}
 //	                      takes turns showing views; each item is a mode ("text",
-//	                      "prayer", "weather", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal" or "aurora") with
+//	                      "prayer", "weather", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal", "aurora" or "aquarium") with
 //	                      the same
 //	                      settings as that mode's endpoint
 //	GET    /api/scenes             saved scenes: [{"name":"Welcome","mode":"text",...}, ...]
@@ -80,8 +87,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -99,6 +108,7 @@ import (
 	"sync"
 	"time"
 
+	"dotmatrix/aquarium"
 	"dotmatrix/connect4"
 	"dotmatrix/gamepad"
 	"dotmatrix/matrix"
@@ -276,6 +286,60 @@ func statusOf(s *minecraft.Scene) *mcStatus {
 
 const maxBody = 4 << 20
 
+// streamFrames sends what the panel shows as server-sent events until the
+// client goes away, skipping frames that haven't changed.
+func streamFrames(w http.ResponseWriter, r *http.Request, player *matrix.Player) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	ticker := time.NewTicker(time.Second / 20)
+	defer ticker.Stop()
+	var lastSeq uint64
+	var last []byte
+	lastSent := time.Now()
+	rgb := make([]byte, matrix.Width*matrix.Height*3)
+	for {
+		frame, seq := player.Frame()
+		if seq != lastSeq {
+			lastSeq = seq
+			i := 0
+			// Send what the panel is actually given: 16 levels a channel.
+			for y := range frame.Pix {
+				for _, p := range frame.Pix[y] {
+					q := matrix.Quantize(p)
+					rgb[i], rgb[i+1], rgb[i+2] = byte(q>>8&15)*17, byte(q>>4&15)*17, byte(q&15)*17
+					i += 3
+				}
+			}
+			msg := fmt.Appendf(nil, "data: %d,%s\n\n", player.State().Brightness, base64.StdEncoding.EncodeToString(rgb))
+			if !bytes.Equal(msg, last) {
+				if _, err := w.Write(msg); err != nil {
+					return
+				}
+				flusher.Flush()
+				last, lastSent = msg, time.Now()
+			}
+		}
+		// A comment now and then stops idle connections being dropped.
+		if time.Since(lastSent) > 15*time.Second {
+			if _, err := io.WriteString(w, ": keepalive\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+			lastSent = time.Now()
+		}
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 func showControllerDisplay(player *matrix.Player, spec sceneSpec, persist func()) {
 	scene, err := spec.build()
 	if err != nil {
@@ -356,6 +420,9 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /", http.FileServerFS(static))
+	mux.HandleFunc("GET /api/frame/stream", func(w http.ResponseWriter, r *http.Request) {
+		streamFrames(w, r, player)
+	})
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
 		writeState(w, player)
 	})
@@ -496,6 +563,7 @@ func main() {
 				{ID: "config:moon", Label: "MOON PHASE"},
 				{ID: "config:fractal", Label: "FRACTALS"},
 				{ID: "config:aurora", Label: "NORTHERN LIGHTS"},
+				{ID: "display:aquarium:show", Label: "AQUARIUM"},
 				{ID: "config:pokemon", Label: "POKEMON"},
 				{ID: "config:starfront", Label: "STARFRONT"},
 				{ID: "config:bytes", Label: "BYTES PRICE"},
@@ -632,6 +700,8 @@ func main() {
 								showControllerDisplay(player, sceneSpec{Mode: "solarsystem", Solar: &solarRequest{Speed: speed, Label: true}}, persist)
 							case "moon":
 								showControllerDisplay(player, sceneSpec{Mode: "moon", Moon: &moonRequest{South: value == "south"}}, persist)
+							case "aquarium":
+								showControllerDisplay(player, sceneSpec{Mode: "aquarium", Aquarium: &aquariumRequest{}}, persist)
 							case "aurora":
 								var speed float64
 								fmt.Sscan(value, &speed)
@@ -921,6 +991,11 @@ func main() {
 			return
 		}
 		player.Show(orrery.New(orrery.Options{Speed: req.Speed, Label: req.Label}))
+		persist()
+		writeState(w, player)
+	})
+	mux.HandleFunc("POST /api/aquarium", func(w http.ResponseWriter, r *http.Request) {
+		player.Show(aquarium.New())
 		persist()
 		writeState(w, player)
 	})

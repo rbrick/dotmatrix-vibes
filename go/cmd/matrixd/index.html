@@ -13,7 +13,11 @@
   body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
   main { max-width: 520px; margin: 0 auto; padding: 24px 16px; }
   h1 { font-size: 20px; margin: 0 0 4px; }
-  #status { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+  #status { color: var(--muted); margin: 0 0 12px; font-size: 13px; }
+  #preview { margin: 0 0 16px; padding: 10px; background: #0b0b0a; border: 1px solid #2a2a27; border-radius: 10px;
+    box-shadow: inset 0 0 0 2px #000; }
+  #preview canvas { display: block; width: 100%; aspect-ratio: 2 / 1; }
+  #preview.stale canvas { opacity: .45; }
   #status.ok::before { content: "● "; color: #2f9e44; }
   #status.bad::before { content: "● "; color: #e03131; }
   form { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
@@ -63,6 +67,7 @@
 <main>
   <h1>LED Matrix</h1>
   <p id="status">connecting…</p>
+  <div id="preview" aria-label="Live preview of the panel" role="img"><canvas id="led"></canvas></div>
   <nav id="tabs" aria-label="Display controls" role="tablist"></nav>
   <h2>Text</h2>
   <form id="f">
@@ -282,11 +287,17 @@
 
   <h2>Northern lights</h2>
   <form id="auf">
-    <p class="hint" style="margin:0">Rippling curtains of red, green and blue aurora over pine-topped hills, mirrored in a lake.</p>
+    <p class="hint" style="margin:0">Rippling curtains of red, green and blue aurora over dark mountains and pines, mirrored in a lake.</p>
     <div class="row">
       <label>Speed <input type="number" id="auspeed" min="0.1" max="10" step="0.1" value="1"></label>
     </div>
     <div class="buttons"><button type="submit">Show northern lights</button></div>
+  </form>
+
+  <h2>Aquarium</h2>
+  <form id="aqf">
+    <p class="hint" style="margin:0">A live reef tank: two clownfish around their anemone, two blue tangs and a betta, over sand and rocks with swaying seaweed, bubbles and sunlight.</p>
+    <div class="buttons"><button type="submit">Show aquarium</button></div>
   </form>
 
   <h2>Fractals</h2>
@@ -341,12 +352,12 @@ const $ = id => document.getElementById(id);
 
 // Keep related controls on one tab without changing their existing forms or IDs.
 const groups = { Text: "Display", "Saved scenes": "Display", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
-  Planets: "Space", "Solar system": "Space", "Moon phase": "Space", "Northern lights": "Space", Fractals: "Fractals", Pokémon: "Pokémon",
+  Planets: "Space", "Solar system": "Space", "Moon phase": "Space", "Northern lights": "Space", Aquarium: "Space", Fractals: "Fractals", Pokémon: "Pokémon",
   "Minecraft server": "Servers", "Starfront roofs": "Servers", "Neo Tokyo": "Neo Tokyo", Rotation: "Rotation", "Connect 4": "Games",
   "Bluetooth controllers": "Controllers" };
 const panels = {}, tabButtons = {}, main = document.querySelector("main");
 let currentPanel;
-for (const node of [...main.children].slice(3)) {
+for (const node of [...main.children].slice(4)) {
   if (node.tagName === "H2") {
     const name = groups[node.textContent];
     if (!name) throw new Error(`Unassigned tab for ${node.textContent}`);
@@ -387,6 +398,77 @@ function render(s) {
   $("status").textContent = s.connected ? `connected on ${s.port}` : `not connected${s.error ? ": " + s.error : ""}`;
   return s;
 }
+
+// --- Live preview: the panel's frames, drawn as round, glowing LEDs ---
+(() => {
+  const W = 64, H = 32, led = $("led"), ctx = led.getContext("2d");
+  const src = document.createElement("canvas"); src.width = W; src.height = H;
+  const sctx = src.getContext("2d"), img = sctx.createImageData(W, H);
+  let frame = null, source = null, staleTimer;
+  function size() {
+    const r = window.devicePixelRatio || 1, w = led.clientWidth;
+    led.width = Math.round(w * r); led.height = Math.round(w / 2 * r);
+    draw();
+  }
+  function draw() {
+    const pitch = led.width / W, rad = pitch * 0.4;
+    ctx.globalCompositeOperation = "source-over"; ctx.filter = "none";
+    ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, led.width, led.height);
+    // Unlit LEDs show faintly, as on the real panel.
+    ctx.fillStyle = "#161615";
+    ctx.beginPath();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      ctx.moveTo((x + 0.5) * pitch + rad, (y + 0.5) * pitch); ctx.arc((x + 0.5) * pitch, (y + 0.5) * pitch, rad, 0, 2 * Math.PI);
+    }
+    ctx.fill();
+    if (!frame) return;
+    const [bright, rgb] = frame;
+    // Emulate the panel: the driver (rpi-rgb-led-matrix) maps each of the
+    // 16 levels through the CIE 1931 lightness curve, scaled by brightness,
+    // so the dim levels come out very dim. Show each LED relative to white
+    // at that brightness (eyes adapt to a glowing panel), dimmed a little as
+    // the brightness setting drops.
+    const pct = Math.floor(bright * 99 / 255) + 1;
+    const cie = v => { v = v * pct / 255; return v <= 8 ? v / 902.3 : ((v + 16) / 116) ** 3; };
+    const white = cie(255), dim = 0.55 + 0.45 * pct / 100;
+    const out = v => 255 * (cie(v) / white) ** (1 / 2.2) * dim;
+    for (let i = 0, j = 0; i < W * H; i++, j += 3) {
+      img.data[i * 4] = out(rgb[j]); img.data[i * 4 + 1] = out(rgb[j + 1]); img.data[i * 4 + 2] = out(rgb[j + 2]); img.data[i * 4 + 3] = 255;
+    }
+    sctx.putImageData(img, 0, 0);
+    // Light spilling around each LED.
+    ctx.globalCompositeOperation = "lighter";
+    ctx.imageSmoothingEnabled = true;
+    ctx.filter = `blur(${pitch * 0.9}px)`; ctx.globalAlpha = 0.7;
+    ctx.drawImage(src, 0, 0, led.width, led.height);
+    ctx.filter = "none"; ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+    for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i += 4) {
+      const r = img.data[i], g = img.data[i + 1], b = img.data[i + 2];
+      if (r + g + b < 6) continue;
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.beginPath(); ctx.arc((x + 0.5) * pitch, (y + 0.5) * pitch, rad, 0, 2 * Math.PI); ctx.fill();
+    }
+  }
+  function connect() {
+    if (source) return;
+    source = new EventSource("/api/frame/stream");
+    source.onmessage = e => {
+      const comma = e.data.indexOf(",");
+      const bin = atob(e.data.slice(comma + 1)), rgb = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) rgb[i] = bin.charCodeAt(i);
+      frame = [Number(e.data.slice(0, comma)), rgb];
+      $("preview").classList.remove("stale");
+      clearTimeout(staleTimer);
+      requestAnimationFrame(draw);
+    };
+    // EventSource reconnects by itself; grey the picture out meanwhile.
+    source.onerror = () => { staleTimer = setTimeout(() => $("preview").classList.add("stale"), 3000); };
+  }
+  function disconnect() { if (source) { source.close(); source = null; } }
+  document.addEventListener("visibilitychange", () => document.hidden ? disconnect() : connect());
+  new ResizeObserver(size).observe(led);
+  connect();
+})();
 
 async function call(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -582,6 +664,7 @@ $("mf").addEventListener("submit", e => {
   e.preventDefault();
   call("/api/moon", { south: $("msouth").checked });
 });
+$("aqf").addEventListener("submit", e => { e.preventDefault(); call("/api/aquarium", {}); });
 $("auf").addEventListener("submit", e => {
   e.preventDefault();
   call("/api/aurora", { speed: Number($("auspeed").value) });
@@ -617,6 +700,7 @@ const views = [
       citizenSpec(!(Number($("ctid").value) > 0), secs) },
   { mode: "solarsystem", label: "Solar system", seconds: 30, on: false, spec: () =>
       ({ speed: Number($("sspeed").value), label: $("slabel").checked }) },
+  { mode: "aquarium", label: "Aquarium", seconds: 60, on: false, spec: () => ({}) },
   { mode: "aurora", label: "Northern lights", seconds: 60, on: false, spec: () => ({ speed: Number($("auspeed").value) }) },
   { mode: "fractal", label: "Fractals", seconds: 60, on: false, spec: () =>
       ({ set: $("frset").value, speed: Number($("frspeed").value) }) },
@@ -694,7 +778,7 @@ function loadSpec(s) {
 // --- Saved scenes ---
 const modeNames = { text: "text", weather: "weather", prayer: "prayer times", planet: "planet", pokemon: "Pokémon", moon: "moon phase",
   solarsystem: "solar system", minecraft: "Minecraft", starfront: "Starfront", bytes: "$BYTES", citizen: "Citizen",
-  fractal: "fractals", aurora: "northern lights", rotation: "rotation", image: "image" };
+  fractal: "fractals", aurora: "northern lights", aquarium: "aquarium", rotation: "rotation", image: "image" };
 function drawScenes(list) {
   if (!list) return;
   const box = $("scenes");

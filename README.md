@@ -61,6 +61,8 @@ curl -X POST localhost:8080/api/clear
 curl localhost:8080/api/state
 ```
 
+**Live preview.** The top of the control page shows what the panel is showing, drawn as round, glowing LEDs and updated up to 20 times a second. It shows what the LEDs really do: the panel's 16 levels per colour and the driver's brightness curve, so colours too dim for the panel look dim (or off) in the preview too. It works with no panel connected, so you can try scenes on a laptop. Frames come from `GET /api/frame/stream` (server-sent events: `brightness,base64` of 64×32 RGB bytes at the panel's 16 levels, sent only when the picture changes).
+
 `/api/text` fields: `text` (up to 4 lines, `\n`-separated), `color`/`background` (`#rrggbb` or a name like `red`), `align` (`left`/`center`/`right`), `scroll` (`auto` scrolls only when too wide, `always`, `never`), `speed` (px/s).
 
 Emoji: text can contain emoji characters (❤️ 🔥 ⭐ 😎 👾 😂 💩 🪐 🔭 …) or `:shortcodes:` (`:heart:`, `:fire:`, `:invader:`, `:joy:`/`:lol:`, `:poop:`, `:planet:`, `:telescope:` …). They're 7×7 colour sprites defined in `go/matrix/emoji.go`; add your own there. Unsupported emoji show as `?`.
@@ -168,9 +170,17 @@ curl -X POST localhost:8080/api/moon
 curl -d '{"south":true}' localhost:8080/api/moon     # southern hemisphere: waxing Moon lit on the left
 ```
 
+### Aquarium
+
+A live reef tank. Two clownfish dart around their swaying anemone, two blue tangs (royal blue, black markings, yellow tails) cruise the length of the tank, and a red betta drifts along trailing its long fins. Fish wag their tails faster as they speed up, turn to face where they're going, and move aside for each other (the slower fish gives way). Sunlight slants through the water and ripples at the surface, bubbles rise, and seaweed waves over sand and rocks. The code is `go/aquarium`.
+
+```bash
+curl -X POST localhost:8080/api/aquarium
+```
+
 ### Northern lights
 
-The aurora over a dark, starry sky, above pine-topped hills and a lake that mirrors it. Three folded curtains ripple and drift: a high, mostly red crown, a bright green main curtain and a lower blue fold. Each is coloured by height, like a real aurora: a violet fringe on the lower edge, the green band, and red higher up. Bright waves sweep along the curtains while rays shimmer and stars twinkle. The code is `go/aurora`.
+The aurora over a dark, starry sky, above a range of dark mountains (their skyline catching its light, a little snow on the summits), a black pine treeline, and a lake that mirrors it all with gentle ripples and drifting light streaks. Three folded curtains ripple and drift: a high, mostly red crown, a bright green main curtain and a lower blue fold. Each is coloured by height, like a real aurora: a violet fringe on the lower edge, the green band, and red higher up. Bright waves sweep along the curtains while rays shimmer and stars twinkle. The code is `go/aurora`.
 
 ```bash
 curl -X POST localhost:8080/api/aurora
@@ -203,7 +213,7 @@ curl -d '{"items":[
 ]}' localhost:8080/api/rotation
 ```
 
-Each item is a `mode` (`prayer`, `planet`, `moon`, `solarsystem`, `minecraft`, `starfront`, `bytes`, `citizen`, `fractal`, `aurora`, `pokemon` or `text`), that mode's settings (the same as its own endpoint), and `seconds`. On the control page, tick the views in the Rotation section; each uses the settings in its own section.
+Each item is a `mode` (`prayer`, `planet`, `moon`, `solarsystem`, `minecraft`, `starfront`, `bytes`, `citizen`, `fractal`, `aurora`, `aquarium`, `pokemon` or `text`), that mode's settings (the same as its own endpoint), and `seconds`. On the control page, tick the views in the Rotation section; each uses the settings in its own section.
 
 ### Pokémon
 
@@ -227,7 +237,7 @@ Play on the panel from the control page (click a column, or ← → and Enter/Sp
 
 #### Bluetooth and USB controllers
 
-`matrixd` automatically discovers Linux game controllers, including Nintendo Switch Pro/Joy-Con and Xbox controllers, when they connect or reconnect. Press **Start/Menu/+** or **Home/Guide** to return to the last controller menu (press it again from a menu for the root menu), then choose with the D-pad and any face button. The Games submenu includes **Connect 4** and **Block Drop** (a falling-block puzzle: Left/Right move, Down drops, Up/A/B/X/Y rotates). Its **Displays** submenu lets you configure and switch directly between Planets, Solar System, Moon Phase, Fractals, Northern Lights, Pokémon, Starfront, $BYTES, Citizens, the welcome display, or any scene saved from the website. Each display opens a controller-friendly options menu (for example planet, time-lapse speed, hemisphere, fractal set, shiny Pokémon, building, refresh rate, or season). Weather and Prayer Clock appear only after a location has been configured in one of those displays, and offer preview/method choices. Menus remember their previous selection, long items scroll automatically, and the controller's B button goes back (with the correct Nintendo/Xbox button layout). You can also resume the previous display or turn the panel off. USB controllers work immediately.
+`matrixd` automatically discovers Linux game controllers, including Nintendo Switch Pro/Joy-Con and Xbox controllers, when they connect or reconnect. Press **Start/Menu/+** or **Home/Guide** to return to the last controller menu (press it again from a menu for the root menu), then choose with the D-pad and any face button. The Games submenu includes **Connect 4** and **Block Drop** (a falling-block puzzle: Left/Right move, Down drops, Up/A/B/X/Y rotates). Its **Displays** submenu lets you configure and switch directly between Planets, Solar System, Moon Phase, Fractals, Northern Lights, Aquarium, Pokémon, Starfront, $BYTES, Citizens, the welcome display, or any scene saved from the website. Each display opens a controller-friendly options menu (for example planet, time-lapse speed, hemisphere, fractal set, shiny Pokémon, building, refresh rate, or season). Weather and Prayer Clock appear only after a location has been configured in one of those displays, and offer preview/method choices. Menus remember their previous selection, long items scroll automatically, and the controller's B button goes back (with the correct Nintendo/Xbox button layout). You can also resume the previous display or turn the panel off. USB controllers work immediately.
 
 Pair a Bluetooth controller once on the Pi (put the controller in pairing mode first):
 

@@ -162,6 +162,8 @@ type Player struct {
 	connected  bool
 	port       string
 	lastErr    string
+	frame      Canvas // the last frame rendered, for previews
+	frameSeq   uint64 // counts frames rendered
 
 	wake chan struct{}
 	done chan struct{}
@@ -221,6 +223,15 @@ func (p *Player) State() State {
 	return s
 }
 
+// Frame returns a copy of the last frame rendered and a number that
+// changes whenever a new frame is rendered. Frames are rendered even while
+// the panel is disconnected, so a preview keeps working.
+func (p *Player) Frame() (Canvas, uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.frame, p.frameSeq
+}
+
 // Close stops the Player. The panel keeps showing its last frame.
 func (p *Player) Close() { close(p.done) }
 
@@ -261,42 +272,50 @@ func (p *Player) run() {
 	}()
 	canvas := NewCanvas()
 	sentBrightness := -1
+	var nextAttempt time.Time // when to try to reconnect to the panel
 	for {
-		if d == nil {
+		if d == nil && !time.Now().Before(nextAttempt) {
 			var err error
 			if d, err = Open(p.portName); err != nil {
+				d = nil
 				p.setStatus(false, p.portName, err)
-				if !p.sleep(2 * time.Second) {
-					return
-				}
-				continue
+				nextAttempt = time.Now().Add(2 * time.Second)
+			} else {
+				p.setStatus(true, d.Port(), nil)
+				sentBrightness = -1
 			}
-			p.setStatus(true, d.Port(), nil)
-			sentBrightness = -1
 		}
 
 		p.mu.Lock()
 		brightness := p.brightness
 		next := p.scene.Render(canvas, time.Since(p.shownAt))
 		nextFrame := time.Now().Add(next)
+		p.frame = *canvas
+		p.frameSeq++
 		p.mu.Unlock()
 
-		err := d.Show(canvas)
-		if err == nil && int(brightness) != sentBrightness {
-			if err = d.SetBrightness(brightness); err == nil {
-				sentBrightness = int(brightness)
+		if d != nil {
+			err := d.Show(canvas)
+			if err == nil && int(brightness) != sentBrightness {
+				if err = d.SetBrightness(brightness); err == nil {
+					sentBrightness = int(brightness)
+				}
 			}
-		}
-		if err != nil {
-			d.Close()
-			d = nil
-			p.setStatus(false, p.portName, err)
-			continue
+			if err != nil {
+				d.Close()
+				d = nil
+				p.setStatus(false, p.portName, err)
+				continue
+			}
 		}
 
 		wait := keepaliveInterval
 		if next >= 0 {
 			wait = min(max(time.Until(nextFrame), minFrameInterval), keepaliveInterval)
+		}
+		if d == nil {
+			// Keep animating the preview, but come back to reconnect.
+			wait = min(wait, max(time.Until(nextAttempt), minFrameInterval))
 		}
 		if !p.sleep(wait) {
 			return
