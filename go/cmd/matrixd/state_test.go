@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"dotmatrix/aurora"
 	"dotmatrix/connect4"
 	"dotmatrix/fractal"
 	"dotmatrix/matrix"
@@ -81,6 +82,13 @@ func TestStateRoundTrip(t *testing.T) {
 			p.Show(s)
 		},
 		"solarsystem": func(p *matrix.Player) { p.Show(orrery.New(orrery.Options{Speed: 7, Label: true})) },
+		"aurora": func(p *matrix.Player) {
+			s, err := aurora.New(aurora.Options{Speed: 0.5})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p.Show(s)
+		},
 		"fractal": func(p *matrix.Player) {
 			s, err := fractal.New(fractal.Options{Set: fractal.Julia, Speed: 2.5})
 			if err != nil {

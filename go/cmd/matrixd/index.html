@@ -280,6 +280,15 @@
     <div class="buttons"><button type="submit">Show moon phase</button></div>
   </form>
 
+  <h2>Northern lights</h2>
+  <form id="auf">
+    <p class="hint" style="margin:0">Rippling curtains of red, green and blue aurora over pine-topped hills, mirrored in a lake.</p>
+    <div class="row">
+      <label>Speed <input type="number" id="auspeed" min="0.1" max="10" step="0.1" value="1"></label>
+    </div>
+    <div class="buttons"><button type="submit">Show northern lights</button></div>
+  </form>
+
   <h2>Fractals</h2>
   <form id="frf">
     <p class="hint" style="margin:0">Dives into the Mandelbrot set and back out, and Julia sets that melt from one shape into the next, in cycling rainbow colours.</p>
@@ -332,7 +341,7 @@ const $ = id => document.getElementById(id);
 
 // Keep related controls on one tab without changing their existing forms or IDs.
 const groups = { Text: "Display", "Saved scenes": "Display", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
-  Planets: "Space", "Solar system": "Space", "Moon phase": "Space", Fractals: "Fractals", Pokémon: "Pokémon",
+  Planets: "Space", "Solar system": "Space", "Moon phase": "Space", "Northern lights": "Space", Fractals: "Fractals", Pokémon: "Pokémon",
   "Minecraft server": "Servers", "Starfront roofs": "Servers", "Neo Tokyo": "Neo Tokyo", Rotation: "Rotation", "Connect 4": "Games",
   "Bluetooth controllers": "Controllers" };
 const panels = {}, tabButtons = {}, main = document.querySelector("main");
@@ -573,6 +582,10 @@ $("mf").addEventListener("submit", e => {
   e.preventDefault();
   call("/api/moon", { south: $("msouth").checked });
 });
+$("auf").addEventListener("submit", e => {
+  e.preventDefault();
+  call("/api/aurora", { speed: Number($("auspeed").value) });
+});
 $("frf").addEventListener("submit", e => {
   e.preventDefault();
   call("/api/fractal", { set: $("frset").value, speed: Number($("frspeed").value) });
@@ -604,6 +617,7 @@ const views = [
       citizenSpec(!(Number($("ctid").value) > 0), secs) },
   { mode: "solarsystem", label: "Solar system", seconds: 30, on: false, spec: () =>
       ({ speed: Number($("sspeed").value), label: $("slabel").checked }) },
+  { mode: "aurora", label: "Northern lights", seconds: 60, on: false, spec: () => ({ speed: Number($("auspeed").value) }) },
   { mode: "fractal", label: "Fractals", seconds: 60, on: false, spec: () =>
       ({ set: $("frset").value, speed: Number($("frspeed").value) }) },
   { mode: "pokemon", label: "Pokémon (random if no name)", seconds: 20, on: false, spec: secs =>
@@ -672,6 +686,7 @@ function loadSpec(s) {
     $("ctid").value = s.citizen.id || ""; $("ctseason").value = String(s.citizen.season || 0);
     $("ctzoom").checked = s.citizen.zoom; $("ctlabel").checked = s.citizen.label;
   }
+  if (s.aurora) $("auspeed").value = String(s.aurora.speed || 1);
   if (s.fractal) { $("frset").value = s.fractal.set || "both"; $("frspeed").value = String(s.fractal.speed || 1); }
   if (s.solarsystem) { $("sspeed").value = String(s.solarsystem.speed || 0); $("slabel").checked = s.solarsystem.label; }
 }
@@ -679,7 +694,7 @@ function loadSpec(s) {
 // --- Saved scenes ---
 const modeNames = { text: "text", weather: "weather", prayer: "prayer times", planet: "planet", pokemon: "Pokémon", moon: "moon phase",
   solarsystem: "solar system", minecraft: "Minecraft", starfront: "Starfront", bytes: "$BYTES", citizen: "Citizen",
-  fractal: "fractals", rotation: "rotation", image: "image" };
+  fractal: "fractals", aurora: "northern lights", rotation: "rotation", image: "image" };
 function drawScenes(list) {
   if (!list) return;
   const box = $("scenes");

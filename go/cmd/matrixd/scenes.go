@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"dotmatrix/aurora"
 	"dotmatrix/fractal"
 	"dotmatrix/matrix"
 	"dotmatrix/minecraft"
@@ -24,7 +25,7 @@ import (
 // shows, or one view of a rotation. Mode says which of the other fields is
 // set.
 type sceneSpec struct {
-	Mode    string          `json:"mode"` // "text", "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen" or "fractal"
+	Mode    string          `json:"mode"` // "text", "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal" or "aurora"
 	Text    *textRequest    `json:"text,omitempty"`
 	Prayer  *prayerRequest  `json:"prayer,omitempty"`
 	Planet  *planetRequest  `json:"planet,omitempty"`
@@ -37,6 +38,15 @@ type sceneSpec struct {
 	Citizen *citizenRequest `json:"citizen,omitempty"`
 	Weather *weatherRequest `json:"weather,omitempty"`
 	Fractal *fractalRequest `json:"fractal,omitempty"`
+	Aurora  *auroraRequest  `json:"aurora,omitempty"`
+}
+
+type auroraRequest struct {
+	Speed float64 `json:"speed,omitempty"` // animation speed, up to 10; default 1
+}
+
+func (r auroraRequest) scene() (*aurora.Scene, error) {
+	return aurora.New(aurora.Options{Speed: r.Speed})
 }
 
 type fractalRequest struct {
@@ -202,6 +212,11 @@ func (s sceneSpec) build() (matrix.Scene, error) {
 			return nil, missing()
 		}
 		return s.Fractal.scene()
+	case "aurora":
+		if s.Aurora == nil {
+			return nil, missing()
+		}
+		return s.Aurora.scene()
 	}
 	return nil, fmt.Errorf("unknown mode %q", s.Mode)
 }
@@ -242,6 +257,8 @@ func specOf(scene matrix.Scene) (sceneSpec, bool) {
 		return sceneSpec{Mode: "weather", Weather: &weatherRequest{Lat: sc.Lat, Long: sc.Long, Refresh: sc.Interval.Seconds(), Preview: sc.Preview, WeatherPreview: sc.WeatherPreview}}, true
 	case *fractal.Scene:
 		return sceneSpec{Mode: "fractal", Fractal: &fractalRequest{Set: sc.Set, Speed: sc.Speed}}, true
+	case *aurora.Scene:
+		return sceneSpec{Mode: "aurora", Aurora: &auroraRequest{Speed: sc.Speed}}, true
 	}
 	return sceneSpec{}, false
 }
