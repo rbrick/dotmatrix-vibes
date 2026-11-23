@@ -191,11 +191,12 @@ curl -d '{"speed":0.5}' localhost:8080/api/aurora     # slower, calmer
 
 ### Fractals
 
-Colourful animated fractals. **Mandelbrot** dives from the whole set into one of eight spots on its edge (Seahorse Valley, Elephant Valley, the triple spirals and more), 20,000× deep, and back out again in 30 seconds, then picks the next with a new palette. **Julia** sweeps its constant around the edge of the Mandelbrot set's main cardioid, so the set melts between spirals, rabbits, dendrites and starbursts while slowly turning. **Both** (the default) takes turns. Colours come from smooth escape counts run through cycling cosine palettes; pixels along sharp edges are supersampled to stop them glittering. The code is `go/fractal`.
+Colourful animated fractals. **Mandelbrot** dives from the whole set into one of eight spots on its edge (Seahorse Valley, Elephant Valley, the triple spirals and more), 20,000× deep, and back out again in 30 seconds, then picks the next with a new palette. **Julia** sweeps its constant around the edge of the Mandelbrot set's main cardioid, so the set melts between spirals, rabbits, dendrites and starbursts while slowly turning. **Both** (the default) takes turns. **Burning Ship** (`"set":"burning_ship"`) is the Mandelbrot formula with the absolute values of z's parts taken before squaring, which turns the set into a ship with flames along its hull. It dives into the little ship on its antenna, the armada beside it and the tendrils off its bow. Its dives only go 60× deep, because most of its edge turns to glittering noise on a 64×32 panel well before that. Colours come from smooth escape counts run through cycling cosine palettes; pixels along sharp edges are supersampled to stop them glittering. The code is `go/fractal`.
 
 ```bash
 curl -X POST localhost:8080/api/fractal                              # both, taking turns
 curl -d '{"set":"julia","speed":2}' localhost:8080/api/fractal       # just Julia sets, twice as fast
+curl -d '{"set":"burning_ship"}' localhost:8080/api/fractal           # Burning Ship dives
 ```
 
 ### Rotation

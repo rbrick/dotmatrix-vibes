@@ -1,10 +1,12 @@
-// Package fractal draws animated, colourful Mandelbrot and Julia sets as a
-// matrix.Scene.
+// Package fractal draws animated, colourful Mandelbrot, Julia and Burning
+// Ship fractals as a matrix.Scene.
 //
 // The Mandelbrot set dives into one of a handful of famous spots on its
 // boundary and back out again, then picks the next. The Julia set's
 // constant c travels round the edge of the Mandelbrot set's main cardioid,
-// so the set melts between spirals, rabbits, dendrites and starbursts. Both
+// so the set melts between spirals, rabbits, dendrites and starbursts. The
+// Burning Ship (z → (|Re z| + i|Im z|)² + c) dives like the Mandelbrot set,
+// into the ship itself and the masts and rigging along its antenna. All
 // are coloured with smooth (fractional) escape counts run through cycling
 // cosine palettes.
 package fractal
@@ -20,14 +22,15 @@ import (
 
 // The sets a Scene can show.
 const (
-	Mandelbrot = "mandelbrot"
-	Julia      = "julia"
-	Both       = "both" // take turns: one Mandelbrot dive, then one Julia loop
+	Mandelbrot  = "mandelbrot"
+	Julia       = "julia"
+	BurningShip = "burning_ship"
+	Both        = "both" // take turns: one Mandelbrot dive, then one Julia loop
 )
 
 // Options configure a Scene.
 type Options struct {
-	Set   string  // Mandelbrot, Julia or Both; "" is Both
+	Set   string  // Mandelbrot, Julia, BurningShip or Both; "" is Both
 	Speed float64 // animation speed; 0 is 1
 }
 
@@ -42,9 +45,9 @@ func New(o Options) (*Scene, error) {
 	switch o.Set {
 	case "":
 		o.Set = Both
-	case Mandelbrot, Julia, Both:
+	case Mandelbrot, Julia, BurningShip, Both:
 	default:
-		return nil, fmt.Errorf("fractal: unknown set %q (want %q, %q or %q)", o.Set, Mandelbrot, Julia, Both)
+		return nil, fmt.Errorf("fractal: unknown set %q (want %q, %q, %q or %q)", o.Set, Mandelbrot, Julia, BurningShip, Both)
 	}
 	if o.Speed < 0 || o.Speed > 10 {
 		return nil, fmt.Errorf("fractal: speed must be between 0 and 10")
@@ -73,15 +76,17 @@ func (s *Scene) Render(c *matrix.Canvas, elapsed time.Duration) time.Duration {
 	t := elapsed.Seconds() * speed
 	switch s.Set {
 	case Mandelbrot:
-		drawMandelbrot(c, t)
+		drawDive(c, t, mandelbrot)
 	case Julia:
 		drawJulia(c, t)
+	case BurningShip:
+		drawDive(c, t, ship)
 	default:
 		// Alternate whole cycles so each switch happens at a zoomed-out view.
 		turn := int(t / (diveSeconds + juliaSeconds))
 		in := math.Mod(t, diveSeconds+juliaSeconds)
 		if in < diveSeconds {
-			drawMandelbrot(c, float64(turn)*diveSeconds+in)
+			drawDive(c, float64(turn)*diveSeconds+in, mandelbrot)
 		} else {
 			drawJulia(c, float64(turn)*juliaSeconds+in-diveSeconds)
 		}
@@ -89,52 +94,81 @@ func (s *Scene) Render(c *matrix.Canvas, elapsed time.Duration) time.Duration {
 	return frameInterval
 }
 
-// Spots on the Mandelbrot set's boundary worth zooming into.
-// Each was nudged by a search for windows with many colour bands and
-// little black at every depth of the dive.
-var targets = [][2]float64{
-	{-0.745747806737, 0.136308022709},  // Seahorse Valley
-	{0.264071578314, -0.002655424998},  // Elephant Valley
-	{-0.079209113827, 0.658278028326},  // Triple Spiral Valley
-	{-0.761726881497, -0.089168506186}, // double spirals
-	{-1.772675450205, 0.005220806495},  // along the main antenna
-	{-0.165302305873, -1.039393627598}, // filaments at the top of the set
-	{-0.735946468554, 0.192183531446},  // seahorses' tails
-	{0.302599608368, 0.021291083679},   // the elephants' outer edge
+// A dive zooms from a zoomed-out view of a set into one of its targets and
+// back out again, then on to the next target with the next palette.
+type dive struct {
+	targets [][2]float64
+	home    [2]float64 // the middle of the zoomed-out view
+	width   float64    // width of the panel in the complex plane, zoomed out
+	maxZoom float64    // how far each dive goes
+	palette int        // the first dive's palette
+	burning bool       // the Burning Ship rather than the Mandelbrot set
 }
 
-// home is the zoomed-out view: the whole set fits the 2:1 panel.
-var home = [2]float64{-0.6, 0}
+var mandelbrot = dive{
+	// Spots on the Mandelbrot set's boundary worth zooming into.
+	// Each was nudged by a search for windows with many colour bands and
+	// little black at every depth of the dive.
+	targets: [][2]float64{
+		{-0.745747806737, 0.136308022709},  // Seahorse Valley
+		{0.264071578314, -0.002655424998},  // Elephant Valley
+		{-0.079209113827, 0.658278028326},  // Triple Spiral Valley
+		{-0.761726881497, -0.089168506186}, // double spirals
+		{-1.772675450205, 0.005220806495},  // along the main antenna
+		{-0.165302305873, -1.039393627598}, // filaments at the top of the set
+		{-0.735946468554, 0.192183531446},  // seahorses' tails
+		{0.302599608368, 0.021291083679},   // the elephants' outer edge
+	},
+	home:    [2]float64{-0.6, 0}, // the whole set fits the 2:1 panel
+	width:   3.6,
+	maxZoom: 2e4,
+}
 
-const (
-	homeWidth = 3.6   // width of the panel in the complex plane, zoomed out
-	maxZoom   = 2e4   // how far each dive goes
-	bailout   = 256.0 // a big escape radius smooths the colour bands
-)
+// The Burning Ship, with the imaginary axis pointing down the panel so the
+// ship sails upright.
+var ship = dive{
+	// Found by a search like the Mandelbrot targets', which also counted
+	// against noise: most of the ship's edge is glitter at panel size.
+	targets: [][2]float64{
+		{-1.780202671373, -0.043053766211}, // the little ship on the antenna
+		{0.995507744994, -1.432082045596},  // tendrils off the bow
+		{-1.596407543799, -0.001935225965}, // ships where the antenna leaves the hull
+		{-1.860439185529, -0.000392107180}, // the armada further along
+	},
+	home:  [2]float64{-0.45, -0.6}, // the whole ship fits the 2:1 panel
+	width: 4.6,
+	// The ship's edges turn to glittering noise on a 64×32 panel well
+	// before the Mandelbrot set's do, so its dives are shallower.
+	maxZoom: 60,
+	palette: 1,
+	burning: true,
+}
 
-func drawMandelbrot(c *matrix.Canvas, t float64) {
+const bailout = 256.0 // a big escape radius smooths the colour bands
+
+func drawDive(c *matrix.Canvas, t float64, d dive) {
 	n := int(t / diveSeconds)
 	phase := math.Mod(t, diveSeconds) / diveSeconds
-	target := targets[n%len(targets)]
+	target := d.targets[n%len(d.targets)]
 	// Ease in and back out: 0 at either end of the dive, 1 in the middle.
 	depth := (1 - math.Cos(2*math.Pi*phase)) / 2
-	zoom := math.Pow(maxZoom, depth)
-	width := homeWidth / zoom
+	zoom := math.Pow(d.maxZoom, depth)
+	width := d.width / zoom
 	// The target drifts to the middle of the panel as the view narrows, so
 	// a dive both starts and ends exactly at home.
-	cx := target[0] + (home[0]-target[0])/zoom
-	cy := target[1] + (home[1]-target[1])/zoom
+	cx := target[0] + (d.home[0]-target[0])/zoom
+	cy := target[1] + (d.home[1]-target[1])/zoom
 	maxIter := 64 + int(48*math.Log10(zoom))
-	pal := palettes[n%len(palettes)]
+	pal := palettes[(n+d.palette)%len(palettes)]
 	shift := t * 0.08
 
 	step := width / matrix.Width
 	render(c, step, func(x, y float64) color.RGBA {
 		x0, y0 := cx+x, cy+y
-		if inMainBulbs(x0, y0) {
+		if !d.burning && inMainBulbs(x0, y0) {
 			return color.RGBA{A: 255}
 		}
-		mu, escaped := escape(x0, y0, x0, y0, maxIter)
+		mu, escaped := escape(x0, y0, x0, y0, maxIter, d.burning)
 		return shade(pal, mu, escaped, shift)
 	})
 }
@@ -158,7 +192,7 @@ func drawJulia(c *matrix.Canvas, t float64) {
 	pal := palettes[(int(t/juliaSeconds)+2)%len(palettes)]
 	shift := t * 0.1
 	render(c, width/matrix.Width, func(x, y float64) color.RGBA {
-		mu, escaped := escape(x*cos-y*sin, x*sin+y*cos, cr, ci, 128)
+		mu, escaped := escape(x*cos-y*sin, x*sin+y*cos, cr, ci, 128, false)
 		return shade(pal, mu, escaped, shift)
 	})
 }
@@ -216,13 +250,17 @@ func abs(n int) int {
 }
 
 // escape iterates z → z² + c from z and returns the smooth escape count, or
-// false if z hasn't escaped after maxIter steps.
-func escape(zr, zi, cr, ci float64, maxIter int) (float64, bool) {
+// false if z hasn't escaped after maxIter steps. With burning, it takes the
+// absolute values of z's parts before squaring: the Burning Ship.
+func escape(zr, zi, cr, ci float64, maxIter int, burning bool) (float64, bool) {
 	for i := 0; i < maxIter; i++ {
 		zr2, zi2 := zr*zr, zi*zi
 		if zr2+zi2 > bailout*bailout {
 			// Fractional iteration count: no bands between whole steps.
 			return float64(i) + 1 - math.Log2(math.Log(zr2+zi2)/2), true
+		}
+		if burning {
+			zr, zi = math.Abs(zr), math.Abs(zi)
 		}
 		zr, zi = zr2-zi2+cr, 2*zr*zi+ci
 	}

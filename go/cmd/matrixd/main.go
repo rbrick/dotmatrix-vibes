@@ -55,9 +55,10 @@
 //	                      a Neo Tokyo Citizen from citgen.rcw.io (downloaded once, then
 //	                      cached); id 0 shows a random one every dwell seconds, from
 //	                      season 1 or 2, or either when season is 0
-//	POST /api/fractal     {"set":"both"|"mandelbrot"|"julia","speed":1}
+//	POST /api/fractal     {"set":"both"|"mandelbrot"|"julia"|"burning_ship","speed":1}
 //	                      colourful animated fractals: Mandelbrot zooms and morphing
-//	                      Julia sets, taking turns with "both"; speed up to 10
+//	                      Julia sets, taking turns with "both", or Burning Ship
+//	                      zooms; speed up to 10
 //	POST /api/aurora      {"speed":1}
 //	                      the northern lights: rippling red, green and blue curtains
 //	                      over mountains and a lake; speed up to 10
@@ -595,7 +596,7 @@ func main() {
 			case "aurora":
 				items = []menu.Item{{ID: "display:aurora:1", Label: "NORMAL"}, {ID: "display:aurora:0.5", Label: "SLOW"}, {ID: "display:aurora:2", Label: "FAST"}}
 			case "fractal":
-				items = []menu.Item{{ID: "display:fractal:both", Label: "BOTH"}, {ID: "display:fractal:mandelbrot", Label: "MANDELBROT"}, {ID: "display:fractal:julia", Label: "JULIA"}}
+				items = []menu.Item{{ID: "display:fractal:both", Label: "BOTH"}, {ID: "display:fractal:mandelbrot", Label: "MANDELBROT"}, {ID: "display:fractal:julia", Label: "JULIA"}, {ID: "display:fractal:burning_ship", Label: "BURNING SHIP"}}
 			case "pokemon":
 				items = []menu.Item{{ID: "display:pokemon:normal", Label: "RANDOM"}, {ID: "display:pokemon:shiny", Label: "RANDOM SHINY"}}
 			case "starfront":

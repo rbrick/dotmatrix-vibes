@@ -55,7 +55,7 @@ func (r auroraRequest) scene() (*aurora.Scene, error) {
 }
 
 type fractalRequest struct {
-	Set   string  `json:"set,omitempty"`   // "mandelbrot", "julia" or "both" (default)
+	Set   string  `json:"set,omitempty"`   // "mandelbrot", "julia", "burning_ship" or "both" (default)
 	Speed float64 `json:"speed,omitempty"` // animation speed, up to 10; default 1
 }
 

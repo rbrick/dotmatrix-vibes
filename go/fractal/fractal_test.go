@@ -48,8 +48,13 @@ func TestFramesAreColourful(t *testing.T) {
 			t.Errorf("%s at %gs: %d colours, %d black pixels", name, at, colours, black)
 		}
 	}
-	for i := range targets {
+	for i := range mandelbrot.targets {
 		check("mandelbrot dive", Mandelbrot, (float64(i)+0.5)*diveSeconds)
+	}
+	for i := range ship.targets {
+		for _, phase := range []float64{0.25, 0.5} {
+			check("burning ship dive", BurningShip, (float64(i)+phase)*diveSeconds)
+		}
 	}
 	for i := 0; i < 8; i++ {
 		check("julia", Julia, float64(i)*juliaSeconds/8)
@@ -59,16 +64,39 @@ func TestFramesAreColourful(t *testing.T) {
 // A dive starts and ends at the same zoomed-out view, so moving on to the
 // next target doesn't jump.
 func TestDivesJoinUp(t *testing.T) {
-	s, _ := New(Options{Set: Mandelbrot})
-	end, start := matrix.NewCanvas(), matrix.NewCanvas()
-	s.Render(end, time.Duration((diveSeconds-0.001)*float64(time.Second)))
-	s.Render(start, time.Duration(diveSeconds*float64(time.Second)))
-	// Only the palette changes, so the set's shape (its black pixels) should
-	// match, give or take an edge pixel or two blended differently.
-	_, b1 := colourful(end)
-	_, b2 := colourful(start)
-	if d := b1 - b2; d < -5 || d > 5 {
-		t.Errorf("set shape jumps between dives: %d vs %d black pixels", b1, b2)
+	for _, set := range []string{Mandelbrot, BurningShip} {
+		s, _ := New(Options{Set: set})
+		end, start := matrix.NewCanvas(), matrix.NewCanvas()
+		s.Render(end, time.Duration((diveSeconds-0.001)*float64(time.Second)))
+		s.Render(start, time.Duration(diveSeconds*float64(time.Second)))
+		// Only the palette changes, so the set's shape (its black pixels)
+		// should match, give or take an edge pixel or two blended differently.
+		_, b1 := colourful(end)
+		_, b2 := colourful(start)
+		if d := b1 - b2; d < -5 || d > 5 {
+			t.Errorf("%s: set shape jumps between dives: %d vs %d black pixels", set, b1, b2)
+		}
+	}
+}
+
+// The Burning Ship is its own picture, not the Mandelbrot set.
+func TestBurningShip(t *testing.T) {
+	if _, err := New(Options{Set: BurningShip}); err != nil {
+		t.Fatal(err)
+	}
+	// -0.8-0.6i is in the ship's hull but outside the Mandelbrot set.
+	if _, escaped := escape(-0.8, -0.6, -0.8, -0.6, 500, true); escaped {
+		t.Error("-0.8-0.6i escaped the Burning Ship")
+	}
+	if _, escaped := escape(-0.8, -0.6, -0.8, -0.6, 500, false); !escaped {
+		t.Error("-0.8-0.6i didn't escape the Mandelbrot set")
+	}
+	// i lies in the Mandelbrot set but escapes the Burning Ship.
+	if _, escaped := escape(0, 1, 0, 1, 500, false); escaped {
+		t.Error("i escaped the Mandelbrot set")
+	}
+	if _, escaped := escape(0, 1, 0, 1, 500, true); !escaped {
+		t.Error("i didn't escape the Burning Ship")
 	}
 }
 
