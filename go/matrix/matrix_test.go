@@ -152,3 +152,16 @@ func TestQuantizeKeepsHue(t *testing.T) {
 		}
 	}
 }
+
+func TestEmojiPixels(t *testing.T) {
+	for _, e := range Emojis() {
+		if len(e.Pixels) != 7 || len(e.Pixels[0]) != emojiWidth {
+			t.Fatalf("%s: sprite is %d rows", e.Name, len(e.Pixels))
+		}
+		if e.Name == "heart" {
+			if got := e.Pixels[0]; got[0] != "" || got[1] != "#ff0000" {
+				t.Errorf("heart top row = %q, want transparent then red", got)
+			}
+		}
+	}
+}

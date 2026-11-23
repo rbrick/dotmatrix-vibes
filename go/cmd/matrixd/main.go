@@ -12,7 +12,8 @@
 //	                      second): "brightness,base64" where the base64 is 64×32
 //	                      RGB bytes, row by row from the top left, at the panel's
 //	                      16 levels a channel (0, 17, 34 … 255)
-//	GET  /api/emoji       built-in emoji: [{"name":"heart","char":"❤"}, ...]
+//	GET  /api/emoji       built-in emoji: [{"name":"heart","char":"❤","pixels":[["","#ff0000",...],...]}, ...]
+//	                      pixels is the 7×7 sprite, "" where it is transparent
 //	POST /api/prayer      {"lat":40.71,"long":-74.01,"method":"ISNA","clock24":false}
 //	                      shows the next prayer time and a time-of-day emoji
 //	POST /api/connect4/new     {"vsComputer":true,"difficulty":"easy|normal|hard","cpuFirst":false}
@@ -428,12 +429,13 @@ func main() {
 	})
 	mux.HandleFunc("GET /api/emoji", func(w http.ResponseWriter, r *http.Request) {
 		type item struct {
-			Name string `json:"name"`
-			Char string `json:"char"`
+			Name   string     `json:"name"`
+			Char   string     `json:"char"`
+			Pixels [][]string `json:"pixels"`
 		}
 		var list []item
 		for _, e := range matrix.Emojis() {
-			list = append(list, item{e.Name, e.Char})
+			list = append(list, item{e.Name, e.Char, e.Pixels})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(list)

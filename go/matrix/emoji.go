@@ -342,13 +342,16 @@ func init() {
 type EmojiInfo struct {
 	Name string // shortcode without colons
 	Char string // the canonical emoji character
+	// Pixels is the sprite, row by row: "#rrggbb" for each lit pixel and ""
+	// for transparent ones.
+	Pixels [][]string
 }
 
 // Emojis lists the built-in emoji in alphabetical order of name.
 func Emojis() []EmojiInfo {
 	out := make([]EmojiInfo, len(emojis))
 	for i, e := range emojis {
-		out[i] = EmojiInfo{Name: e.name, Char: string(e.runes[0])}
+		out[i] = EmojiInfo{Name: e.name, Char: string(e.runes[0]), Pixels: e.pixels()}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
@@ -470,6 +473,19 @@ func cells(s string, images Images) []cell {
 		}
 	}
 	return out
+}
+
+func (e *emoji) pixels() [][]string {
+	rows := make([][]string, len(e.art))
+	for y, line := range e.art {
+		rows[y] = make([]string, len(line))
+		for x := 0; x < len(line); x++ {
+			if px, ok := emojiPalette[line[x]]; ok {
+				rows[y][x] = HexColor(px)
+			}
+		}
+	}
+	return rows
 }
 
 func (e *emoji) draw(c *Canvas, x, y int) {

@@ -60,6 +60,22 @@
   #scenes .scene span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #scenes .scene small { color: var(--muted); }
   #scenes button { padding: 5px 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 14px; }
+  #preview { position: relative; }
+  #preview.painting canvas { cursor: crosshair; touch-action: none; }
+  #preview.painting { border-color: var(--accent); position: sticky; top: 0; z-index: 3; }
+  .tools { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tools button { padding: 7px 10px; background: var(--bg); color: var(--fg); border: 1px solid var(--line); }
+  .tools button[aria-checked=true] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #pswatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  #pswatches button { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--line); }
+  #pswatches button[aria-pressed=true] { border-color: var(--fg); box-shadow: 0 0 0 2px var(--bg) inset; }
+  #pemoji { display: flex; flex-wrap: wrap; gap: 4px; }
+  #pemoji button { padding: 4px; line-height: 0; background: #0b0b0a; border: 1px solid var(--line); touch-action: none; cursor: grab; }
+  #pemoji button[aria-pressed=true] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  #pemoji canvas { width: 28px; height: 28px; image-rendering: pixelated; pointer-events: none; }
+  #pghost { position: fixed; pointer-events: none; z-index: 10; font-size: 28px; line-height: 1; transform: translate(-50%, -50%); }
+  button:disabled { opacity: .45; cursor: default; }
   #scname { flex: 1; min-width: 0; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 </style>
 </head>
@@ -106,6 +122,47 @@
     </div>
     <p class="hint" style="margin:0">Saves whatever is on the panel now (text, a planet, a rotation…) to show again later. Saving with an existing name replaces it.</p>
   </form>
+
+  <h2>Paint</h2>
+  <section id="paint" class="card">
+    <p class="hint" style="margin:0">Paint straight onto the preview above. The first stroke starts from whatever the panel is showing; every change goes to the panel as you draw.</p>
+    <div class="tools" role="radiogroup" aria-label="Tool" id="ptools">
+      <button type="button" data-tool="brush" title="Brush (B)">🖌️ Brush</button>
+      <button type="button" data-tool="spray" title="Spray can (S)">💨 Spray</button>
+      <button type="button" data-tool="rainbow" title="Rainbow brush (R)">🌈 Rainbow</button>
+      <button type="button" data-tool="eraser" title="Eraser (E)">🧽 Eraser</button>
+      <button type="button" data-tool="fill" title="Fill (F)">🪣 Fill</button>
+      <button type="button" data-tool="picker" title="Pick a colour from the picture (I)">💧 Picker</button>
+      <button type="button" data-tool="stamp" title="Stamp the chosen emoji (T)">⭐ Stamp</button>
+    </div>
+    <div class="row">
+      <label>Colour <input type="color" id="pcolor" value="#ff3b30"></label>
+      <label>Brush size
+        <select id="psize"><option value="1">1 px</option><option value="2">2 px</option><option value="3" selected>3 px</option><option value="5">5 px</option><option value="7">7 px</option></select>
+      </label>
+      <label>Brush tip
+        <select id="pshape"><option value="round">Round</option><option value="square">Square</option></select>
+      </label>
+    </div>
+    <div id="pswatches" aria-label="Colour swatches"></div>
+    <div>
+      <div class="hint" style="margin-bottom:4px">Emoji: drag one onto the picture, or tap one and use Stamp.</div>
+      <div id="pemoji" aria-label="Emoji to drag onto the picture"></div>
+    </div>
+    <div class="row">
+      <label>Emoji size
+        <select id="pescale"><option value="1">7 px</option><option value="2" selected>14 px</option><option value="3">21 px</option><option value="4">28 px</option></select>
+      </label>
+      <label class="check" style="align-self:end; padding-bottom:9px"><input type="checkbox" id="pmirror"> Mirror left ↔ right</label>
+    </div>
+    <div class="buttons" style="flex-wrap:wrap">
+      <button type="button" id="pundo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+      <button type="button" id="predo" title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button>
+      <button type="button" id="pfillall">Fill all</button>
+      <button type="button" id="pblank">Blank canvas</button>
+    </div>
+    <p class="hint" style="margin:0">Keep a painting with <b>Save what's showing</b> under Display → Saved scenes.</p>
+  </section>
 
   <h2>Location</h2>
   <form id="lf">
@@ -351,7 +408,7 @@
 const $ = id => document.getElementById(id);
 
 // Keep related controls on one tab without changing their existing forms or IDs.
-const groups = { Text: "Display", "Saved scenes": "Display", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
+const groups = { Text: "Display", "Saved scenes": "Display", Paint: "Paint", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
   Planets: "Space", "Solar system": "Space", "Moon phase": "Space", "Northern lights": "Space", Aquarium: "Space", Fractals: "Fractals", Pokémon: "Pokémon",
   "Minecraft server": "Servers", "Starfront roofs": "Servers", "Neo Tokyo": "Neo Tokyo", Rotation: "Rotation", "Connect 4": "Games",
   "Bluetooth controllers": "Controllers" };
@@ -381,7 +438,8 @@ function showTab(name) {
     tabButtons[key].setAttribute("aria-selected", String(key === name));
     tabButtons[key].tabIndex = key === name ? 0 : -1;
   }
-  sessionStorage.setItem("matrix-tab", name);
+  try { sessionStorage.setItem("matrix-tab", name); } catch {}
+  document.dispatchEvent(new CustomEvent("tabchange", { detail: name }));
 }
 $("tabs").addEventListener("keydown", e => {
   if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
@@ -400,11 +458,18 @@ function render(s) {
 }
 
 // --- Live preview: the panel's frames, drawn as round, glowing LEDs ---
-(() => {
+// Paint mode swaps in its own picture (override) and draws a brush cursor
+// on top (overlay).
+const preview = (() => {
   const W = 64, H = 32, led = $("led"), ctx = led.getContext("2d");
   const src = document.createElement("canvas"); src.width = W; src.height = H;
   const sctx = src.getContext("2d"), img = sctx.createImageData(W, H);
-  let frame = null, source = null, staleTimer;
+  let frame = null, source = null, staleTimer, override = null, overlay = null, queued = false;
+  function schedule() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; draw(); });
+  }
   function size() {
     const r = window.devicePixelRatio || 1, w = led.clientWidth;
     led.width = Math.round(w * r); led.height = Math.round(w / 2 * r);
@@ -421,8 +486,12 @@ function render(s) {
       ctx.moveTo((x + 0.5) * pitch + rad, (y + 0.5) * pitch); ctx.arc((x + 0.5) * pitch, (y + 0.5) * pitch, rad, 0, 2 * Math.PI);
     }
     ctx.fill();
-    if (!frame) return;
-    const [bright, rgb] = frame;
+    const bright = frame ? frame[0] : 255, rgb = override || (frame && frame[1]);
+    if (rgb) lights(bright, rgb);
+    if (overlay) overlay(ctx, pitch);
+  }
+  function lights(bright, rgb) {
+    const pitch = led.width / W, rad = pitch * 0.4;
     // Emulate the panel: the driver (rpi-rgb-led-matrix) maps each of the
     // 16 levels through the CIE 1931 lightness curve, scaled by brightness,
     // so the dim levels come out very dim. Show each LED relative to white
@@ -459,7 +528,7 @@ function render(s) {
       frame = [Number(e.data.slice(0, comma)), rgb];
       $("preview").classList.remove("stale");
       clearTimeout(staleTimer);
-      requestAnimationFrame(draw);
+      schedule();
     };
     // EventSource reconnects by itself; grey the picture out meanwhile.
     source.onerror = () => { staleTimer = setTimeout(() => $("preview").classList.add("stale"), 3000); };
@@ -468,6 +537,13 @@ function render(s) {
   document.addEventListener("visibilitychange", () => document.hidden ? disconnect() : connect());
   new ResizeObserver(size).observe(led);
   connect();
+  return {
+    canvas: led,
+    latest: () => frame && frame[1], // 64×32 RGB at the panel's 16 levels
+    setOverride(rgb) { override = rgb; schedule(); },
+    setOverlay(fn) { overlay = fn; schedule(); },
+    redraw: schedule,
+  };
 })();
 
 async function call(path, body) {
@@ -597,6 +673,317 @@ fetch("/api/emoji").then(r => r.json()).then(list => {
     $("emoji").append(b);
   }
 });
+
+// --- Paint: draw on the preview, sending each change to the panel ---
+(() => {
+  const W = 64, H = 32, led = preview.canvas;
+  const pic = document.createElement("canvas"); pic.width = W; pic.height = H;
+  const pctx = pic.getContext("2d");
+  let buf = null;       // the picture, W×H×3 at full 8 bits; null until the first edit
+  let active = false, tool = "brush", stamp = null, hover = null, drag = null;
+  let drawing = false, last = null, sprayTimer = null, hue = 0;
+  const undo = [], redo = [];
+
+  // What the panel shows for a colour (matrix.Quantize), as 0-255 in 16 steps.
+  const lin = v => 15 * (v / 255) ** 2.2;
+  function quantize(r, g, b) {
+    const m = Math.max(r, g, b), top = Math.round(lin(m));
+    if (top === 0) {
+      if (m < 16) return [0, 0, 0];
+      const d = v => v * 2 >= m ? 17 : 0;
+      return [d(r), d(g), d(b)];
+    }
+    const level = v => Math.round(lin(v) / lin(m) * top) * 17;
+    return [level(r), level(g), level(b)];
+  }
+  // A colour that quantizes back to a panel level, to paint over what's showing.
+  const unlevel = v => v ? Math.round(255 * (v / 255) ** (1 / 2.2)) : 0;
+  const hex = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16));
+  const toHex = c => "#" + c.map(v => v.toString(16).padStart(2, "0")).join("");
+  const at = (x, y) => (y * W + x) * 3;
+  const get = (x, y) => [buf[at(x, y)], buf[at(x, y) + 1], buf[at(x, y) + 2]];
+  const shown = (x, y) => quantize(...get(x, y)).join();
+
+  function start() {
+    if (buf) return;
+    buf = new Uint8ClampedArray(W * H * 3);
+    const live = preview.latest();
+    if (live) for (let i = 0; i < buf.length; i++) buf[i] = unlevel(live[i]);
+  }
+  function begin() {
+    start();
+    undo.push(buf.slice());
+    if (undo.length > 50) undo.shift();
+    redo.length = 0;
+    buttons();
+  }
+  function changed() {
+    const q = new Uint8Array(W * H * 3);
+    for (let i = 0; i < buf.length; i += 3) q.set(quantize(buf[i], buf[i + 1], buf[i + 2]), i);
+    preview.setOverride(q);
+    send();
+  }
+  function buttons() { $("pundo").disabled = !undo.length; $("predo").disabled = !redo.length; }
+
+  // One upload at a time; changes made meanwhile go in the next one.
+  let sending = false, pending = false;
+  async function send() {
+    if (sending) { pending = true; return; }
+    sending = true;
+    try {
+      const img = pctx.createImageData(W, H);
+      for (let i = 0, j = 0; i < W * H; i++, j += 3) img.data.set([buf[j], buf[j + 1], buf[j + 2], 255], i * 4);
+      pctx.putImageData(img, 0, 0);
+      const blob = await new Promise(ok => pic.toBlob(ok, "image/png"));
+      const r = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "image/png" }, body: blob });
+      if (r.ok) render(await r.json());
+    } catch {}
+    sending = false;
+    if (pending) { pending = false; send(); }
+  }
+
+  // Drawing. Everything goes through plot, which also mirrors when asked.
+  function plot(x, y, c) {
+    for (const px of $("pmirror").checked && x !== W - 1 - x ? [x, W - 1 - x] : [x]) {
+      if (px < 0 || px >= W || y < 0 || y >= H) continue;
+      buf.set(c, at(px, y));
+    }
+  }
+  function footprint(cx, cy) {
+    const s = Number($("psize").value), c = (s - 1) / 2, lim = (s / 2) ** 2 * 0.8, cells = [];
+    for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) {
+      if ($("pshape").value === "round" && (i - c) ** 2 + (j - c) ** 2 > lim) continue;
+      cells.push([cx + i - Math.floor(c), cy + j - Math.floor(c)]);
+    }
+    return cells;
+  }
+  function hsv(h) {
+    const f = n => { const k = (n + h / 60) % 6; return Math.round(255 * (1 - Math.max(0, Math.min(k, 4 - k, 1)))); };
+    return [f(5), f(3), f(1)];
+  }
+  function dab(x, y) {
+    let c = hex($("pcolor").value);
+    if (tool === "eraser") c = [0, 0, 0];
+    if (tool === "rainbow") { c = hsv(hue); hue = (hue + 9) % 360; }
+    for (const [px, py] of footprint(x, y)) plot(px, py, c);
+  }
+  function spray() {
+    if (!last) return;
+    const r = Number($("psize").value) + 1, c = hex($("pcolor").value);
+    for (let n = 0; n < r; n++) {
+      const a = Math.random() * 2 * Math.PI, d = r * Math.sqrt(Math.random());
+      plot(Math.round(last[0] + d * Math.cos(a)), Math.round(last[1] + d * Math.sin(a)), c);
+    }
+    changed();
+  }
+  function line([x0, y0], [x1, y1]) {
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy;
+    for (;;) {
+      dab(x0, y0);
+      if (x0 === x1 && y0 === y1) return;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+  // Fills the area of the same colour, as the panel shows it, around a pixel.
+  function flood(x, y, c) {
+    const target = shown(x, y);
+    if (target === quantize(...c).join()) return;
+    const seen = new Uint8Array(W * H), stack = [[x, y]];
+    while (stack.length) {
+      const [px, py] = stack.pop();
+      if (px < 0 || px >= W || py < 0 || py >= H || seen[py * W + px] || shown(px, py) !== target) continue;
+      seen[py * W + px] = 1;
+      buf.set(c, at(px, py));
+      stack.push([px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1]);
+    }
+  }
+  function stampCells(sprite, cx, cy) {
+    const k = Number($("pescale").value), h = sprite.length * k, w = sprite[0].length * k, cells = [];
+    const x0 = cx - Math.floor(w / 2), y0 = cy - Math.floor(h / 2);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const c = sprite[Math.floor(y / k)][Math.floor(x / k)];
+      if (c) cells.push([x0 + x, y0 + y, c]);
+    }
+    return cells;
+  }
+  function stampAt(sprite, x, y) {
+    begin();
+    for (const [px, py, c] of stampCells(sprite, x, y)) plot(px, py, c);
+    changed();
+  }
+
+  // The brush outline, or the emoji about to be stamped, over the picture.
+  function overlay(ctx, pitch) {
+    const mirror = $("pmirror").checked, draft = drag && drag.over ? drag : (tool === "stamp" && stamp && hover ? { sprite: stamp.sprite, over: hover } : null);
+    ctx.save();
+    if (draft) {
+      ctx.globalAlpha = 0.75;
+      for (const [x, y, c] of stampCells(draft.sprite, ...draft.over)) for (const px of mirror ? [x, W - 1 - x] : [x]) {
+        ctx.fillStyle = toHex(c);
+        ctx.beginPath(); ctx.arc((px + 0.5) * pitch, (y + 0.5) * pitch, pitch * 0.42, 0, 2 * Math.PI); ctx.fill();
+      }
+    } else if (hover && tool !== "stamp") {
+      const cells = ["fill", "picker"].includes(tool) ? [hover] : footprint(...hover);
+      ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = Math.max(1, pitch * 0.12);
+      for (const [x, y] of cells) for (const px of mirror && tool !== "picker" ? [x, W - 1 - x] : [x])
+        ctx.strokeRect(px * pitch + 1, y * pitch + 1, pitch - 2, pitch - 2);
+    }
+    ctx.restore();
+  }
+
+  function pixelAt(e) {
+    const r = led.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / r.width * W), y = Math.floor((e.clientY - r.top) / r.height * H);
+    return x >= 0 && x < W && y >= 0 && y < H ? [x, y] : null;
+  }
+  led.addEventListener("pointerdown", e => {
+    if (!active || e.button > 0) return;
+    const p = pixelAt(e); if (!p) return;
+    e.preventDefault();
+    led.setPointerCapture(e.pointerId);
+    hover = p;
+    switch (tool) {
+      case "fill": begin(); flood(...p, hex($("pcolor").value)); if ($("pmirror").checked) flood(W - 1 - p[0], p[1], hex($("pcolor").value)); changed(); return;
+      case "picker": start(); setColor(toHex(get(...p))); setTool("brush"); return;
+      case "stamp": if (stamp) stampAt(stamp.sprite, ...p); return;
+    }
+    begin();
+    drawing = true; last = p;
+    if (tool === "spray") { spray(); sprayTimer = setInterval(spray, 40); }
+    else { dab(...p); changed(); }
+  });
+  led.addEventListener("pointermove", e => {
+    if (!active) return;
+    const p = pixelAt(e);
+    hover = p;
+    if (drawing && p) {
+      if (tool !== "spray") { line(last, p); changed(); }
+      last = p;
+    }
+    preview.redraw();
+  });
+  const stop = () => { drawing = false; last = null; clearInterval(sprayTimer); };
+  led.addEventListener("pointerup", stop);
+  led.addEventListener("pointercancel", stop);
+  led.addEventListener("pointerleave", () => { if (!drawing) { hover = null; preview.redraw(); } });
+
+  // Tools, colours and buttons.
+  function setTool(t) {
+    tool = t;
+    for (const b of $("ptools").children) b.setAttribute("aria-checked", String(b.dataset.tool === t));
+    preview.redraw();
+  }
+  for (const b of $("ptools").children) {
+    b.setAttribute("role", "radio");
+    b.addEventListener("click", () => setTool(b.dataset.tool));
+  }
+  setTool("brush");
+  function setColor(c) {
+    $("pcolor").value = c;
+    for (const b of $("pswatches").children) b.setAttribute("aria-pressed", String(b.dataset.color === c));
+  }
+  for (const c of ["#ff3b30", "#ff9500", "#ffd60a", "#7cff00", "#00c853", "#00e5ff", "#2962ff", "#aa00ff", "#ff4fa3", "#ffffff", "#8e8e93", "#8b4513", "#000000"]) {
+    const b = document.createElement("button");
+    b.type = "button"; b.dataset.color = c; b.style.background = c; b.title = c; b.setAttribute("aria-label", c);
+    b.addEventListener("click", () => { setColor(c); if (["eraser", "picker"].includes(tool)) setTool("brush"); });
+    $("pswatches").append(b);
+  }
+  $("pcolor").addEventListener("input", () => setColor($("pcolor").value));
+  setColor($("pcolor").value);
+  for (const id of ["psize", "pshape", "pescale", "pmirror"]) $(id).addEventListener("change", preview.redraw);
+
+  function history(from, to) {
+    if (!from.length) return;
+    start();
+    to.push(buf);
+    buf = from.pop();
+    buttons(); changed();
+  }
+  $("pundo").addEventListener("click", () => history(undo, redo));
+  $("predo").addEventListener("click", () => history(redo, undo));
+  $("pfillall").addEventListener("click", () => {
+    begin();
+    const c = hex($("pcolor").value);
+    for (let i = 0; i < buf.length; i += 3) buf.set(c, i);
+    changed();
+  });
+  $("pblank").addEventListener("click", () => { begin(); buf.fill(0); changed(); });
+  document.addEventListener("keydown", e => {
+    if (!active || e.target.closest("input, textarea, select")) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      e.shiftKey ? history(redo, undo) : history(undo, redo);
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = { b: "brush", s: "spray", r: "rainbow", e: "eraser", f: "fill", i: "picker", t: "stamp" }[e.key.toLowerCase()];
+    if (t) setTool(t);
+  });
+
+  // Emoji: drag one onto the picture, or tap it to stamp with.
+  const ghost = document.createElement("div");
+  ghost.id = "pghost"; ghost.hidden = true; document.body.append(ghost);
+  function selectEmoji(e, tile) {
+    const same = stamp === e;
+    stamp = same ? null : e;
+    for (const b of $("pemoji").children) b.setAttribute("aria-pressed", String(!same && b === tile));
+    if (stamp) setTool("stamp");
+  }
+  fetch("/api/emoji").then(r => r.json()).then(list => {
+    for (const e of list) {
+      e.sprite = e.pixels.map(row => row.map(c => c ? hex(c) : null));
+      const tile = document.createElement("button"), c = document.createElement("canvas");
+      tile.type = "button"; tile.title = `:${e.name}:`; tile.setAttribute("aria-label", e.name.replaceAll("_", " "));
+      c.width = e.sprite[0].length; c.height = e.sprite.length;
+      const cx = c.getContext("2d");
+      e.sprite.forEach((row, y) => row.forEach((p, x) => { if (p) { cx.fillStyle = toHex(p); cx.fillRect(x, y, 1, 1); } }));
+      tile.append(c);
+      tile.addEventListener("pointerdown", ev => {
+        if (ev.button > 0) return;
+        ev.preventDefault();
+        tile.setPointerCapture(ev.pointerId);
+        drag = { emoji: e, sprite: e.sprite, x: ev.clientX, y: ev.clientY, moved: false, over: null };
+      });
+      tile.addEventListener("pointermove", ev => {
+        if (!drag || drag.emoji !== e) return;
+        if (!drag.moved && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 5) return;
+        drag.moved = true;
+        drag.over = active ? pixelAt(ev) : null;
+        ghost.textContent = e.char;
+        ghost.hidden = !!drag.over;
+        ghost.style.left = ev.clientX + "px"; ghost.style.top = ev.clientY + "px";
+        preview.redraw();
+      });
+      const drop = ev => {
+        if (!drag || drag.emoji !== e) return;
+        const d = drag;
+        drag = null; ghost.hidden = true;
+        if (!d.moved) selectEmoji(e, tile);
+        else if (ev.type === "pointerup" && d.over) stampAt(e.sprite, ...d.over);
+        preview.redraw();
+      };
+      tile.addEventListener("pointerup", drop);
+      tile.addEventListener("pointercancel", drop);
+      tile.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); selectEmoji(e, tile); } });
+      $("pemoji").append(tile);
+    }
+  });
+
+  // Paint mode is on while the Paint tab is open. Leaving it lets the preview
+  // follow the panel again; the next stroke starts from whatever is showing.
+  function setActive(on) {
+    if (on === active) return;
+    active = on;
+    $("preview").classList.toggle("painting", on);
+    if (!on) { stop(); buf = null; hover = null; preview.setOverride(null); }
+    preview.setOverlay(on ? overlay : null);
+  }
+  document.addEventListener("tabchange", e => setActive(e.detail === "Paint"));
+  setActive(tabButtons.Paint.getAttribute("aria-selected") === "true");
+})();
 
 // --- Moon and rotation ---
 $("sf").addEventListener("submit", e => {
