@@ -69,7 +69,7 @@ curl localhost:8080/api/state
 
 Emoji: text can contain emoji characters (❤️ 🔥 ⭐ 😎 👾 😂 💩 🪐 🔭 …) or `:shortcodes:` (`:heart:`, `:fire:`, `:invader:`, `:joy:`/`:lol:`, `:poop:`, `:planet:`, `:telescope:` …). They're 7×7 colour sprites defined in `go/matrix/emoji.go`; add your own there. Unsupported emoji show as `?`. Curly quotes, dashes and `…` (which phones type automatically) are drawn as their plain ASCII forms, so `don’t` shows as `don't`.
 
-Inline colours: a colour name or hex code between colons changes the colour of the text after it, so `:pink:Hello :#00ff80:world` is pink then green. Names are those `color` accepts (`red`, `green`, `blue`, `yellow`, `cyan`, `magenta`, `orange`, `purple`, `pink`, `white`, `black`); hex needs the `#` (`:#f80:` works too), so words like `:add:` stay text. `:default:` goes back to the text's `color`. A colour carries on into the next lines until another code changes it. Emoji and sprites keep their own colours.
+Inline colours: a colour name or hex code between colons changes the colour of the text after it, so `:pink:Hello :#00ff80:world` is pink then green. Names are those `color` accepts (`red`, `green`, `blue`, `yellow`, `cyan`, `magenta`, `orange`, `purple`, `pink`, `white`, `black`); hex needs the `#` (`:#f80:` works too), so words like `:add:` stay text. `:default:` goes back to the text's `color`. A colour lasts until the end of its line, so `:yellow:Jummah\nMubarak` colours only the first line. Emoji and sprites keep their own colours.
 
 ```bash
 curl -d ':pink:I :red::heart::default: :cyan:GO' -H 'Content-Type: text/plain' localhost:8080/api/text

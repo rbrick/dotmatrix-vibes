@@ -72,14 +72,12 @@ type textLine struct {
 	width, height int
 }
 
-// layout splits the text into lines. An inline colour code carries on into
-// the following lines until another one changes it.
+// layout splits the text into lines. Inline colour codes only colour the
+// rest of their own line.
 func (t Text) layout() []textLine {
-	var col color.Color
 	var out []textLine
 	for _, l := range t.lines() {
-		var cs []cell
-		cs, col = cellsFrom(l, t.Images, col)
+		cs := cells(l, t.Images)
 		out = append(out, textLine{cs, cellsWidth(cs), lineHeight(cs)})
 	}
 	return out

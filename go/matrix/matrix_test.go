@@ -104,7 +104,7 @@ func TestInlineColours(t *testing.T) {
 	pink := namedColors["pink"]
 	green := color.RGBA{0, 255, 0, 255}
 	colours := func(s string) []color.Color {
-		cs, _ := cellsFrom(s, nil, nil)
+		cs := cells(s, nil)
 		var out []color.Color
 		for _, c := range cs {
 			out = append(out, c.col)
@@ -130,13 +130,14 @@ func TestInlineColours(t *testing.T) {
 		t.Errorf("scanner offered %v", seen)
 	}
 
-	// Drawn: the colour applies to glyphs and carries on to the next line.
+	// Drawn: a code colours the rest of its own line only, so the lines
+	// after it go back to the text's colour.
 	c := NewCanvas()
-	Text{Text: ":pink:I\nI:default:", Color: color.White, Align: AlignLeft}.Render(c, 0)
-	top := (Height - 15) / 2
-	for _, y := range []int{top, top + 8} {
-		if got := c.Pix[y][2]; got != pink {
-			t.Errorf("line at y=%d drawn in %v, want pink", y, got)
+	Text{Text: "I\n:pink:I\nI", Color: color.White, Align: AlignLeft}.Render(c, 0)
+	top := (Height - 23) / 2
+	for i, want := range []color.RGBA{{255, 255, 255, 255}, pink, {255, 255, 255, 255}} {
+		if got := c.Pix[top+8*i][2]; got != want {
+			t.Errorf("line %d drawn in %v, want %v", i+1, got, want)
 		}
 	}
 }

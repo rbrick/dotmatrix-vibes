@@ -482,19 +482,14 @@ func isColorCode(name string) bool {
 	return ok
 }
 
-// cells splits text into drawable items, turning emoji characters and known
-// :shortcodes: into sprites or images.
+// cells splits one line of text into drawable items, turning emoji
+// characters and known :shortcodes: into sprites or images. Inline colour
+// codes such as :pink: change the colour of the glyphs after them, up to the
+// end of the line; glyphs before any code have no colour of their own (nil)
+// and are drawn in the text's colour. Emoji and images keep their own
+// colours, and built-in emoji and images win over colour names that clash.
 func cells(s string, images Images) []cell {
-	out, _ := cellsFrom(s, images, nil)
-	return out
-}
-
-// cellsFrom is cells with inline colour codes: glyphs start in col (nil for
-// the text's colour), each :colour: code changes it for the glyphs after it,
-// and the colour in effect at the end is returned so the next line can carry
-// it on. Emoji and images keep their own colours. Built-in emoji and images
-// win over colour names that clash with them.
-func cellsFrom(s string, images Images, col color.Color) ([]cell, color.Color) {
+	var col color.Color
 	var out []cell
 	for len(s) > 0 {
 		if name, rest, ok := shortcodeAt(s); ok {
@@ -532,7 +527,7 @@ func cellsFrom(s string, images Images, col color.Color) ([]cell, color.Color) {
 			}
 		}
 	}
-	return out, col
+	return out
 }
 
 func (e *emoji) pixels() [][]string {
