@@ -76,6 +76,15 @@
   #pemoji canvas { width: 28px; height: 28px; image-rendering: pixelated; pointer-events: none; }
   #pghost { position: fixed; pointer-events: none; z-index: 10; font-size: 28px; line-height: 1; transform: translate(-50%, -50%); }
   button:disabled { opacity: .45; cursor: default; }
+  .buttons { flex-wrap: wrap; align-items: center; }
+  .buttons .secs { display: flex; align-items: center; gap: 6px; }
+  .buttons .secs input { width: 72px; }
+  #upprev { display: block; width: 100%; aspect-ratio: 2 / 1; image-rendering: pixelated; background: #0b0b0a;
+    border: 1px solid #2a2a27; border-radius: 8px; touch-action: none; cursor: grab; }
+  #upprev:active { cursor: grabbing; }
+  #upprev.fit { cursor: default; }
+  #upcard.drop { outline: 2px dashed var(--accent); outline-offset: -6px; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
   #scname { flex: 1; min-width: 0; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
 </style>
 </head>
@@ -164,6 +173,26 @@
       <button type="button" id="pblank">Blank canvas</button>
     </div>
     <p class="hint" style="margin:0">Keep a painting with <b>Save what's showing</b> under Display → Saved scenes.</p>
+  </section>
+
+  <h2>Paint a picture</h2>
+  <section id="upcard" class="card">
+    <label>Picture <input type="file" id="upfile" accept="image/*"></label>
+    <canvas id="upprev" width="64" height="32" tabindex="0" aria-label="What will be painted. Drag, or use the arrow keys, to move the picture."></canvas>
+    <p class="hint" style="margin:0" id="uphint">Choose a picture, or drop one here. It's shown at the panel's 64×32 LEDs; drag it to choose what fills the panel.</p>
+    <div class="row">
+      <label>Framing
+        <select id="upframe"><option value="fill">Fill the panel</option><option value="fit">Whole picture</option></select>
+      </label>
+      <label>Zoom <input type="range" id="upzoom" min="1" max="4" step="0.05" value="1"></label>
+      <label title="LEDs show dark tones as black; this lifts them">Brighten <input type="range" id="upbright" min="0" max="100" value="40"></label>
+      <label>Colour <input type="range" id="upsat" min="50" max="200" value="120"></label>
+    </div>
+    <div class="buttons">
+      <button type="button" id="uppaint" disabled>🖌 Paint it</button>
+      <label class="secs">in <input type="number" id="upsecs" min="1" max="600" step="1" value="30" aria-label="Painting time in seconds"> s</label>
+      <button type="button" id="upshow" disabled>Show now</button>
+    </div>
   </section>
 
   <h2>Location</h2>
@@ -411,7 +440,7 @@
 const $ = id => document.getElementById(id);
 
 // Keep related controls on one tab without changing their existing forms or IDs.
-const groups = { Text: "Display", "Saved scenes": "Display", Paint: "Paint", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
+const groups = { Text: "Display", "Saved scenes": "Display", Paint: "Paint", "Paint a picture": "Paint", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
   Planets: "Space", "Solar system": "Space", "Moon phase": "Space", "Northern lights": "Space", Aquarium: "Space", Fractals: "Fractals", Pokémon: "Pokémon",
   "Minecraft server": "Servers", "Starfront roofs": "Servers", "Neo Tokyo": "Neo Tokyo", Rotation: "Rotation", "Connect 4": "Games",
   "Bluetooth controllers": "Controllers" };
@@ -644,6 +673,112 @@ $("wf").addEventListener("submit", e => {
 });
 $("clear").addEventListener("click", () => call("/api/clear", {}));
 $("paintit").addEventListener("click", () => call("/api/paint", { seconds: Number($("paintsecs").value) || 30 }));
+
+// --- Paint a picture: frame an uploaded picture at 64×32, then paint it ---
+(() => {
+  const W = 64, H = 32, S = 4; // S×S picture samples are averaged per LED
+  const prev = $("upprev"), pctx = prev.getContext("2d");
+  const work = document.createElement("canvas");
+  work.width = W * S; work.height = H * S;
+  const wctx = work.getContext("2d", { willReadFrequently: true });
+  let img = null, cx = 0.5, cy = 0.5; // centre of the crop, as fractions of the picture
+
+  function load(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      img = im; cx = cy = 0.5; $("upzoom").value = 1;
+      $("uppaint").disabled = $("upshow").disabled = false;
+      draw(); URL.revokeObjectURL(url);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); alert("This browser can't read that picture."); };
+    im.src = url;
+  }
+
+  // The part of the picture that fills the panel: the biggest 2:1 rectangle,
+  // made smaller by zoom, centred on (cx, cy) but kept inside the picture.
+  function cropRect() {
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const w = Math.min(iw, ih * 2) / Number($("upzoom").value), h = w / 2;
+    const x = Math.max(0, Math.min(iw - w, cx * iw - w / 2)), y = Math.max(0, Math.min(ih - h, cy * ih - h / 2));
+    cx = (x + w / 2) / iw; cy = (y + h / 2) / ih;
+    return [x, y, w, h];
+  }
+
+  function draw() {
+    if (!img) return;
+    const fit = $("upframe").value === "fit";
+    prev.classList.toggle("fit", fit);
+    $("upzoom").disabled = fit;
+    wctx.fillStyle = "#000"; wctx.fillRect(0, 0, W * S, H * S);
+    wctx.imageSmoothingEnabled = true; wctx.imageSmoothingQuality = "high";
+    if (fit) {
+      const k = Math.min(W * S / img.naturalWidth, H * S / img.naturalHeight);
+      const dw = img.naturalWidth * k, dh = img.naturalHeight * k;
+      wctx.drawImage(img, (W * S - dw) / 2, (H * S - dh) / 2, dw, dh);
+    } else {
+      const [x, y, w, h] = cropRect();
+      wctx.drawImage(img, x, y, w, h, 0, 0, W * S, H * S);
+    }
+    // Average each LED's samples, then lift dark tones and adjust colour,
+    // as paintpanel does.
+    const src = wctx.getImageData(0, 0, W * S, H * S).data, out = pctx.createImageData(W, H);
+    const gamma = 1 - Number($("upbright").value) / 200, sat = Number($("upsat").value) / 100;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let r = 0, g = 0, b = 0;
+      for (let dy = 0; dy < S; dy++) for (let dx = 0; dx < S; dx++) {
+        const i = ((y * S + dy) * W * S + x * S + dx) * 4;
+        r += src[i]; g += src[i + 1]; b += src[i + 2];
+      }
+      r /= S * S; g /= S * S; b /= S * S;
+      const l = 0.299 * r + 0.587 * g + 0.114 * b;
+      const f = v => 255 * Math.pow(Math.min(255, Math.max(0, l + (v - l) * sat)) / 255, gamma);
+      out.data.set([f(r), f(g), f(b), 255], (y * W + x) * 4);
+    }
+    pctx.putImageData(out, 0, 0);
+  }
+
+  // Move the crop by a distance on screen.
+  function pan(fromCx, fromCy, dxScreen, dyScreen) {
+    const [, , w] = cropRect(), k = w / prev.clientWidth;
+    cx = fromCx - dxScreen * k / img.naturalWidth;
+    cy = fromCy - dyScreen * k / img.naturalHeight;
+    draw();
+  }
+  let drag = null;
+  prev.addEventListener("pointerdown", e => {
+    if (!img || $("upframe").value === "fit") return;
+    prev.setPointerCapture(e.pointerId);
+    drag = { x: e.clientX, y: e.clientY, cx, cy };
+  });
+  prev.addEventListener("pointermove", e => { if (drag) pan(drag.cx, drag.cy, e.clientX - drag.x, e.clientY - drag.y); });
+  for (const ev of ["pointerup", "pointercancel"]) prev.addEventListener(ev, () => { drag = null; });
+  prev.addEventListener("keydown", e => {
+    const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!d || !img || $("upframe").value === "fit") return;
+    e.preventDefault();
+    const step = prev.clientWidth / 32; // two LEDs
+    pan(cx, cy, -d[0] * step, -d[1] * step);
+  });
+
+  $("upfile").addEventListener("change", () => load($("upfile").files[0]));
+  const card = $("upcard");
+  card.addEventListener("dragover", e => { e.preventDefault(); card.classList.add("drop"); });
+  card.addEventListener("dragleave", () => card.classList.remove("drop"));
+  card.addEventListener("drop", e => { e.preventDefault(); card.classList.remove("drop"); load(e.dataTransfer.files[0]); });
+  for (const id of ["upframe", "upzoom", "upbright", "upsat"]) $(id).addEventListener("input", draw);
+
+  const png = () => new Promise(ok => prev.toBlob(ok, "image/png"));
+  const base64 = blob => new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result.split(",")[1]); fr.readAsDataURL(blob); });
+  $("uppaint").addEventListener("click", async () => {
+    call("/api/paint", { seconds: Number($("upsecs").value) || 30, image: await base64(await png()) });
+  });
+  $("upshow").addEventListener("click", async () => {
+    const r = await fetch("/api/image", { method: "POST", headers: { "Content-Type": "image/png" }, body: await png() });
+    if (!r.ok) { alert(await r.text()); return; }
+    render(await r.json());
+  });
+})();
 $("brightness").addEventListener("change", () => call("/api/brightness", { brightness: Number($("brightness").value) }));
 
 function insertAtCursor(str) {
