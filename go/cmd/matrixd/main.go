@@ -84,6 +84,9 @@
 // Colour codes like :pink: or :#00ff80: colour the text after them, and
 // :default: goes back to the text's colour.
 //
+// AI agents can look at the panel and draw on it through the MCP server at
+// /mcp (see mcp.go).
+//
 // What the panel shows and its brightness are saved to a state file (by
 // default ~/.config/matrixd/state.json) after every change and restored at
 // startup, unless -text, -prayer or -rotate says what to show. The saved
@@ -430,6 +433,7 @@ func main() {
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
 		writeState(w, player)
 	})
+	mux.Handle("/mcp", newMCPHandler(player, persist))
 	mux.HandleFunc("GET /api/emoji", func(w http.ResponseWriter, r *http.Request) {
 		type item struct {
 			Name   string     `json:"name"`

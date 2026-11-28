@@ -65,6 +65,14 @@ curl localhost:8080/api/state
 
 **Paint.** Open the control page's **Paint** tab and the preview becomes a canvas: draw on it with the mouse or a finger and each change goes straight to the panel. The first stroke starts from whatever the panel is showing, so you can paint over text or a scene. Tools: brush (round or square tip, 1–7 px), spray can, rainbow brush, eraser, fill (fills the area of one colour, as the panel shows it), colour picker and emoji stamp. Drag any built-in emoji onto the picture (7–28 px), or tap one and click to stamp it. There's undo/redo (Ctrl+Z / Ctrl+Shift+Z), a mirror mode for symmetric pictures, and keyboard shortcuts B, S, R, E, F, I, T for the tools. Paintings are sent as images (`POST /api/image`), so they're saved like any other picture; keep one with **Save what's showing**.
 
+**AI agents can draw too.** `matrixd` is an MCP server at `/mcp`, so Claude Code, Claude Desktop or any other MCP client can look at the panel and paint on it. This repository's `.mcp.json` connects Claude Code to `http://dotmatrix.local:8080/mcp` (approve it when Claude Code asks); elsewhere, add it with:
+
+```bash
+claude mcp add --transport http dotmatrix http://dotmatrix.local:8080/mcp
+```
+
+Tools: `view_panel` returns a picture of what the panel shows (each LED an 8×8 block, grid lines every 8 LEDs); `draw` runs a list of operations (`pixel`, `line`, `rect`, `circle`, `fill`, `text`, `sprite`, `clear`) on what the panel shows, or on black with `"base":"blank"`, then shows the result and returns a picture of it; `read_pixels` returns a region's exact colours as palette rows, the same format `sprite` takes. Like Paint, drawing replaces the panel's content with a still picture that's saved like any other. There's no authentication, the same as the rest of the API, so only expose `matrixd` on a network you trust.
+
 `/api/text` fields: `text` (up to 4 lines, `\n`-separated), `color`/`background` (`#rrggbb` or a name like `red`), `align` (`left`/`center`/`right`), `scroll` (`auto` scrolls only the lines too wide for the panel, `always` scrolls every line, `never`), `speed` (px/s). Each line scrolls on its own, looping at its own length, so a short heading stays put above a long scrolling message.
 
 Emoji: text can contain emoji characters (❤️ 🔥 ⭐ 😎 👾 😂 💩 🪐 🔭 …) or `:shortcodes:` (`:heart:`, `:fire:`, `:invader:`, `:joy:`/`:lol:`, `:poop:`, `:planet:`, `:telescope:` …). They're 7×7 colour sprites defined in `go/matrix/emoji.go`; add your own there. Unsupported emoji show as `?`. Curly quotes, dashes and `…` (which phones type automatically) are drawn as their plain ASCII forms, so `don’t` shows as `don't`.

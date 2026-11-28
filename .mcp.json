@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "dotmatrix": {
+      "type": "http",
+      "url": "http://dotmatrix.local:8080/mcp"
+    }
+  }
+}
