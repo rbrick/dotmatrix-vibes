@@ -405,6 +405,22 @@
     <div class="buttons"><button type="submit">Show fractals</button></div>
   </form>
 
+  <h2>Video</h2>
+  <form id="vdf">
+    <p class="hint" style="margin:0">Plays a YouTube video (or any link yt-dlp can open) on the panel at 64×32, with no sound. Live streams work too.</p>
+    <label>Link <input type="url" id="vdurl" placeholder="https://www.youtube.com/watch?v=…" required autocomplete="off"
+      style="font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px;"></label>
+    <div class="row">
+      <label>Framing
+        <select id="vdfit"><option value="fill">Fill the panel</option><option value="fit">Whole frame</option></select>
+      </label>
+      <label title="LEDs show dark tones as black; this lifts them">Brighten <input type="number" id="vdbright" min="0.5" max="3" step="0.1" value="1.3"></label>
+      <label class="check"><input type="checkbox" id="vdloop"> Loop</label>
+    </div>
+    <div class="buttons"><button type="submit">Play</button></div>
+    <p class="hint" style="margin:0" id="vdstatus" aria-live="polite"></p>
+  </form>
+
   <h2>Rotation</h2>
   <form id="rf">
     <p class="hint" style="margin:0">Takes turns showing the ticked views, using each one's settings from its section above.</p>
@@ -441,7 +457,7 @@ const $ = id => document.getElementById(id);
 
 // Keep related controls on one tab without changing their existing forms or IDs.
 const groups = { Text: "Display", "Saved scenes": "Display", Paint: "Paint", "Paint a picture": "Paint", Location: "Weather", "Prayer times": "Weather", "Weather scene": "Weather",
-  Planets: "Space", "Solar system": "Space", "Moon phase": "Space", "Northern lights": "Space", Aquarium: "Space", Fractals: "Fractals", Pokémon: "Pokémon",
+  Planets: "Space", "Solar system": "Space", "Moon phase": "Space", "Northern lights": "Space", Aquarium: "Space", Fractals: "Fractals", Video: "Video", Pokémon: "Pokémon",
   "Minecraft server": "Servers", "Starfront roofs": "Servers", "Neo Tokyo": "Neo Tokyo", Rotation: "Rotation", "Connect 4": "Games",
   "Bluetooth controllers": "Controllers" };
 const panels = {}, tabButtons = {}, main = document.querySelector("main");
@@ -1134,6 +1150,18 @@ $("mcf").addEventListener("submit", async e => {
   $("mcstatus").textContent = "Pinging…";
   showMC(await call("/api/minecraft", { address: $("mcaddr").value, icon: $("mcicon").value, refresh: Number($("mcrefresh").value) }));
 });
+$("vdf").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("vdstatus").textContent = "Loading…";
+  showVideo(await call("/api/video", { url: $("vdurl").value, fit: $("vdfit").value === "fit",
+    loop: $("vdloop").checked, brighten: Number($("vdbright").value) || 1.3 }));
+});
+function showVideo(s) {
+  if (!s || s.mode !== "video") { if (s) $("vdstatus").textContent = ""; return; }
+  const st = s.videoStatus || "";
+  $("vdstatus").textContent = st === "loading" ? "Loading…" : st === "playing" ? "Playing" : st === "ended" ? "Ended" :
+    st === "stopped" ? "Stopped" : st.startsWith("error: ") ? "Couldn't play it: " + st.slice(7) : st;
+}
 function showMC(s) {
   const st = s && s.minecraftStatus;
   if (!s || s.mode !== "minecraft") { if (s) $("mcstatus").textContent = ""; return; }
@@ -1297,6 +1325,10 @@ function loadSpec(s) {
     $("ctzoom").checked = s.citizen.zoom; $("ctlabel").checked = s.citizen.label;
   }
   if (s.aurora) $("auspeed").value = String(s.aurora.speed || 1);
+  if (s.video) {
+    $("vdurl").value = s.video.url || ""; $("vdfit").value = s.video.fit ? "fit" : "fill";
+    $("vdloop").checked = !!s.video.loop; $("vdbright").value = String(s.video.brighten || 1.3);
+  }
   if (s.fractal) { $("frset").value = s.fractal.set || "both"; $("frspeed").value = String(s.fractal.speed || 1); }
   if (s.solarsystem) { $("sspeed").value = String(s.solarsystem.speed || 0); $("slabel").checked = s.solarsystem.label; }
 }
@@ -1304,7 +1336,7 @@ function loadSpec(s) {
 // --- Saved scenes ---
 const modeNames = { text: "text", weather: "weather", prayer: "prayer times", planet: "planet", pokemon: "Pokémon", moon: "moon phase",
   solarsystem: "solar system", minecraft: "Minecraft", starfront: "Starfront", bytes: "$BYTES", citizen: "Citizen",
-  fractal: "fractals", aurora: "northern lights", aquarium: "aquarium", rotation: "rotation", image: "image", painting: "painting" };
+  fractal: "fractals", aurora: "northern lights", aquarium: "aquarium", rotation: "rotation", image: "image", painting: "painting", video: "video" };
 function drawScenes(list) {
   if (!list) return;
   const box = $("scenes");
@@ -1448,7 +1480,7 @@ setInterval(async () => {
 // Fill the forms from what the panel shows.
 function fillForms(s) {
   loadSpec(s);
-  showMC(s); showRoofs(s); showNT(s);
+  showMC(s); showRoofs(s); showNT(s); showVideo(s);
   if (s.rotation) {
     for (const v of views) $(`rot-${v.mode}`).checked = false;
     for (const it of s.rotation.items) {
@@ -1465,7 +1497,7 @@ call("/api/state").then(s => {
   if (savedLocation && Number.isFinite(savedLocation.lat) && Number.isFinite(savedLocation.long)) setLocation(savedLocation.lat, savedLocation.long);
   if (!previousTab && s.mode === "weather") showTab("Weather");
 });
-setInterval(() => call("/api/state").then(s => { showMC(s); showRoofs(s); showNT(s); }), 2000);
+setInterval(() => call("/api/state").then(s => { showMC(s); showRoofs(s); showNT(s); showVideo(s); }), 2000);
 </script>
 </body>
 </html>

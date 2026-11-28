@@ -19,6 +19,7 @@ import (
 	"dotmatrix/pokemon"
 	"dotmatrix/prayerclock"
 	"dotmatrix/starfront"
+	"dotmatrix/video"
 	"dotmatrix/weather"
 )
 
@@ -26,7 +27,7 @@ import (
 // shows, or one view of a rotation. Mode says which of the other fields is
 // set.
 type sceneSpec struct {
-	Mode     string           `json:"mode"` // "text", "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal", "aurora" or "aquarium"
+	Mode     string           `json:"mode"` // "text", "prayer", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal", "aurora", "aquarium" or "video"
 	Text     *textRequest     `json:"text,omitempty"`
 	Prayer   *prayerRequest   `json:"prayer,omitempty"`
 	Planet   *planetRequest   `json:"planet,omitempty"`
@@ -41,6 +42,19 @@ type sceneSpec struct {
 	Fractal  *fractalRequest  `json:"fractal,omitempty"`
 	Aurora   *auroraRequest   `json:"aurora,omitempty"`
 	Aquarium *aquariumRequest `json:"aquarium,omitempty"`
+	Video    *videoRequest    `json:"video,omitempty"`
+}
+
+// videoRequest plays a video with no sound, see package video.
+type videoRequest struct {
+	URL      string  `json:"url"`                // a YouTube (or other yt-dlp supported) link
+	Fit      bool    `json:"fit,omitempty"`      // whole frame with black bars instead of filling the panel
+	Loop     bool    `json:"loop,omitempty"`     // play again when it ends
+	Brighten float64 `json:"brighten,omitempty"` // 0.5-3; default 1.3
+}
+
+func (r videoRequest) scene() (*video.Scene, error) {
+	return video.New(video.Options{URL: r.URL, Fit: r.Fit, Loop: r.Loop, Brighten: r.Brighten})
 }
 
 // aquariumRequest has no settings: the tank always has the same fish.
@@ -222,6 +236,11 @@ func (s sceneSpec) build() (matrix.Scene, error) {
 			return nil, missing()
 		}
 		return s.Aurora.scene()
+	case "video":
+		if s.Video == nil {
+			return nil, missing()
+		}
+		return s.Video.scene()
 	case "aquarium":
 		if s.Aquarium == nil {
 			return nil, missing()
@@ -269,6 +288,9 @@ func specOf(scene matrix.Scene) (sceneSpec, bool) {
 		return sceneSpec{Mode: "fractal", Fractal: &fractalRequest{Set: sc.Set, Speed: sc.Speed}}, true
 	case *aurora.Scene:
 		return sceneSpec{Mode: "aurora", Aurora: &auroraRequest{Speed: sc.Speed}}, true
+	case *video.Scene:
+		o := sc.Options()
+		return sceneSpec{Mode: "video", Video: &videoRequest{URL: o.URL, Fit: o.Fit, Loop: o.Loop, Brighten: o.Brighten}}, true
 	case *aquarium.Scene:
 		return sceneSpec{Mode: "aquarium", Aquarium: &aquariumRequest{}}, true
 	}

@@ -69,11 +69,14 @@
 //	POST /api/aquarium    {}
 //	                      a reef tank: clownfish round their anemone, blue tangs and
 //	                      a betta swimming over sand, seaweed and bubbles
+//	POST /api/video       {"url":"https://www.youtube.com/watch?v=…","fit":false,"loop":false,"brighten":1.3}
+//	                      plays a video (no sound) at 64×32: yt-dlp fetches a small
+//	                      stream and ffmpeg decodes it in real time; needs both installed
 //	POST /api/rotation    {"items":[{"mode":"prayer","prayer":{...},"seconds":180},
 //	                                {"mode":"planet","planet":{...},"seconds":20},
 //	                                {"mode":"moon","moon":{},"seconds":20}]}
 //	                      takes turns showing views; each item is a mode ("text",
-//	                      "prayer", "weather", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal", "aurora" or "aquarium") with
+//	                      "prayer", "weather", "planet", "pokemon", "moon", "solarsystem", "minecraft", "starfront", "bytes", "citizen", "fractal", "aurora", "aquarium" or "video") with
 //	                      the same
 //	                      settings as that mode's endpoint
 //	GET    /api/scenes             saved scenes: [{"name":"Welcome","mode":"text",...}, ...]
@@ -133,6 +136,7 @@ import (
 	"dotmatrix/prayerclock"
 	"dotmatrix/starfront"
 	"dotmatrix/tetris"
+	"dotmatrix/video"
 )
 
 //go:embed index.html
@@ -217,10 +221,11 @@ type stateResponse struct {
 	Port      string `json:"port,omitempty"`
 	Error     string `json:"error,omitempty"`
 	content
-	MCStatus   *mcStatus   `json:"minecraftStatus,omitempty"` // when showing a Minecraft server
-	RoofStatus *roofStatus `json:"starfrontStatus,omitempty"` // when showing Starfront
-	BytesPrice *bytesPrice `json:"bytesPrice,omitempty"`      // when showing $BYTES
-	Citizen    *citizenNow `json:"citizenShown,omitempty"`    // when showing a Citizen
+	MCStatus    *mcStatus   `json:"minecraftStatus,omitempty"` // when showing a Minecraft server
+	RoofStatus  *roofStatus `json:"starfrontStatus,omitempty"` // when showing Starfront
+	BytesPrice  *bytesPrice `json:"bytesPrice,omitempty"`      // when showing $BYTES
+	Citizen     *citizenNow `json:"citizenShown,omitempty"`    // when showing a Citizen
+	VideoStatus string      `json:"videoStatus,omitempty"`     // when playing a video
 }
 
 // bytesPrice is the latest $BYTES price.
@@ -1028,6 +1033,7 @@ func main() {
 		persist()
 		writeState(w, player)
 	})
+	registerVideo(mux, player, persist)
 	mux.HandleFunc("POST /api/fractal", func(w http.ResponseWriter, r *http.Request) {
 		var req fractalRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody)).Decode(&req); err != nil && err != io.EOF {
@@ -1118,6 +1124,9 @@ func writeState(w http.ResponseWriter, p *matrix.Player) {
 	resp.Image = nil // large and not useful to API clients
 	if mc, ok := s.Scene.(*minecraft.Scene); ok {
 		resp.MCStatus = statusOf(mc)
+	}
+	if v, ok := s.Scene.(*video.Scene); ok {
+		resp.VideoStatus = v.Status()
 	}
 	switch sc := s.Scene.(type) {
 	case *starfront.Scene:
