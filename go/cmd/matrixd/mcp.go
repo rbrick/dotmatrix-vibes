@@ -79,6 +79,16 @@ type pixelsOutput struct {
 	Palette map[string]string `json:"palette" jsonschema:"character → #rrggbb; '.' is black"`
 }
 
+// registerMCP serves the MCP endpoint at /mcp. It is registered per method:
+// a method-less "/mcp" conflicts with the control page's "GET /". The
+// stateless server answers POST and refuses GET and DELETE itself.
+func registerMCP(mux *http.ServeMux, player *matrix.Player, persist func()) {
+	h := newMCPHandler(player, persist)
+	for _, method := range []string{"POST", "GET", "DELETE"} {
+		mux.Handle(method+" /mcp", h)
+	}
+}
+
 // newMCPHandler serves the drawing tools. Drawing replaces the panel's
 // content with a still picture, saved like any other image.
 func newMCPHandler(player *matrix.Player, persist func()) http.Handler {

@@ -433,7 +433,7 @@ func main() {
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) {
 		writeState(w, player)
 	})
-	mux.Handle("/mcp", newMCPHandler(player, persist))
+	registerMCP(mux, player, persist)
 	mux.HandleFunc("GET /api/emoji", func(w http.ResponseWriter, r *http.Request) {
 		type item struct {
 			Name   string     `json:"name"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"image/color"
+	"net/http"
 	"net/http/httptest"
 	"sort"
 	"strings"
@@ -21,10 +22,14 @@ func connectMCP(t *testing.T) (*mcp.ClientSession, *matrix.Player, *int) {
 	t.Helper()
 	p := newPlayer(t)
 	saves := 0
-	srv := httptest.NewServer(newMCPHandler(p, func() { saves++ }))
+	// Routes as main sets them up, so pattern conflicts show up here.
+	mux := http.NewServeMux()
+	mux.Handle("GET /", http.FileServerFS(static))
+	registerMCP(mux, p, func() { saves++ })
+	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "1"}, nil)
-	cs, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: srv.URL, MaxRetries: -1}, nil)
+	cs, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: srv.URL + "/mcp", MaxRetries: -1}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
