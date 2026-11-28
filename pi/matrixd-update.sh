@@ -23,13 +23,6 @@ export GOMAXPROCS=2        # keep memory down and leave cores for the display
 log() { echo "matrixd-update: $*"; }
 
 mkdir -p "$STATE_DIR"
-
-# Videos: YouTube changes often break old yt-dlp versions, so keep a
-# standalone yt-dlp current (once a day). Failure here never stops an update.
-if command -v yt-dlp >/dev/null && [ -z "$(find "$STATE_DIR/yt-dlp-checked" -mmin -1440 2>/dev/null)" ]; then
-  touch "$STATE_DIR/yt-dlp-checked"
-  yt-dlp --update 2>&1 | tail -1 | sed 's/^/matrixd-update: yt-dlp: /' || true
-fi
 if [ ! -d "$SRC/.git" ]; then
   rm -rf "$SRC"
   git clone --quiet --branch "$BRANCH" "$REPO_URL" "$SRC"

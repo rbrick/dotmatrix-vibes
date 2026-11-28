@@ -104,26 +104,6 @@ curl -d ':pink:I :red::heart::default: :cyan:GO' -H 'Content-Type: text/plain' l
 
 **State is saved.** After every change, `matrixd` writes what the panel shows (text, prayer clock, planet, rotation, game or image) and the brightness to `~/.config/matrixd/state.json`, and restores it on the next start. Passing `-text`, `-prayer` or `-rotate` overrides the saved state for that start; `-state other.json` uses a different file and `-state ''` turns saving off.
 
-### Video
-
-The control page's **Video** tab plays a YouTube video (or anything else yt-dlp can open, including live streams) on the panel at 64×32, with no sound. `yt-dlp` fetches a small stream (240p is plenty), `ffmpeg` decodes it in real time and scales it to fill the panel (or, with **Whole frame**, letterboxes it), and it's brightened a little because the LEDs show dark tones as black. Playback starts when it's shown and stops a few seconds after something else is, so nothing keeps downloading in the background; a saved video scene, a rotation or a restart plays it from the start.
-
-```bash
-curl -d '{"url":"https://www.youtube.com/watch?v=aqz-KE-bpKQ","loop":true}' localhost:8080/api/video
-```
-
-It needs `ffmpeg`, a current standalone `yt-dlp`, and Deno (yt-dlp needs a JavaScript runtime for YouTube). On the Pi:
-
-```bash
-sudo apt install ffmpeg unzip
-sudo curl -fsSL -o /usr/local/bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux_aarch64
-sudo chmod 0755 /usr/local/bin/yt-dlp
-curl -fsSL -o /tmp/deno.zip https://github.com/denoland/deno/releases/latest/download/deno-aarch64-unknown-linux-gnu.zip
-sudo unzip -o /tmp/deno.zip -d /usr/local/bin
-```
-
-The auto-updater runs `yt-dlp --update` once a day, since YouTube changes often break older versions. Playing YouTube through anything but YouTube's own player is against YouTube's terms of service.
-
 ### Saved scenes
 
 Save whatever the panel is showing (text with its colours and scrolling, a planet, a rotation, an image…) under a name, and show it again later from the control page's **Saved scenes** section. Scenes are kept in the state file, so they survive restarts. Showing a scene leaves the brightness as it is. Saving under an existing name replaces that scene. Connect 4 games can't be saved as scenes.

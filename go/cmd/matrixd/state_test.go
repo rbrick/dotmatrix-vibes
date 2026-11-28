@@ -29,7 +29,6 @@ import (
 	"dotmatrix/pokemon"
 	"dotmatrix/prayerclock"
 	"dotmatrix/starfront"
-	"dotmatrix/video"
 	"dotmatrix/weather"
 )
 
@@ -108,13 +107,6 @@ func TestStateRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			p.Show(r)
-		},
-		"video": func(p *matrix.Player) {
-			v, err := video.New(video.Options{URL: "https://www.youtube.com/watch?v=aqz-KE-bpKQ", Fit: true, Loop: true, Brighten: 1.5})
-			if err != nil {
-				t.Fatal(err)
-			}
-			p.Show(v)
 		},
 		"painting": func(p *matrix.Player) {
 			c := matrix.NewCanvas()
