@@ -81,6 +81,8 @@
 // Text may contain emoji characters or :shortcodes: such as :heart:,
 // Pokémon box sprites as :pikachu: or :shiny-pikachu:, and Poké Balls as
 // :pokeball:, :greatball:, :masterball: and so on.
+// Colour codes like :pink: or :#00ff80: colour the text after them, and
+// :default: goes back to the text's colour.
 //
 // What the panel shows and its brightness are saved to a state file (by
 // default ~/.config/matrixd/state.json) after every change and restored at

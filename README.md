@@ -65,9 +65,15 @@ curl localhost:8080/api/state
 
 **Paint.** Open the control page's **Paint** tab and the preview becomes a canvas: draw on it with the mouse or a finger and each change goes straight to the panel. The first stroke starts from whatever the panel is showing, so you can paint over text or a scene. Tools: brush (round or square tip, 1–7 px), spray can, rainbow brush, eraser, fill (fills the area of one colour, as the panel shows it), colour picker and emoji stamp. Drag any built-in emoji onto the picture (7–28 px), or tap one and click to stamp it. There's undo/redo (Ctrl+Z / Ctrl+Shift+Z), a mirror mode for symmetric pictures, and keyboard shortcuts B, S, R, E, F, I, T for the tools. Paintings are sent as images (`POST /api/image`), so they're saved like any other picture; keep one with **Save what's showing**.
 
-`/api/text` fields: `text` (up to 4 lines, `\n`-separated), `color`/`background` (`#rrggbb` or a name like `red`), `align` (`left`/`center`/`right`), `scroll` (`auto` scrolls only when too wide, `always`, `never`), `speed` (px/s).
+`/api/text` fields: `text` (up to 4 lines, `\n`-separated), `color`/`background` (`#rrggbb` or a name like `red`), `align` (`left`/`center`/`right`), `scroll` (`auto` scrolls only the lines too wide for the panel, `always` scrolls every line, `never`), `speed` (px/s). Each line scrolls on its own, looping at its own length, so a short heading stays put above a long scrolling message.
 
-Emoji: text can contain emoji characters (❤️ 🔥 ⭐ 😎 👾 😂 💩 🪐 🔭 …) or `:shortcodes:` (`:heart:`, `:fire:`, `:invader:`, `:joy:`/`:lol:`, `:poop:`, `:planet:`, `:telescope:` …). They're 7×7 colour sprites defined in `go/matrix/emoji.go`; add your own there. Unsupported emoji show as `?`.
+Emoji: text can contain emoji characters (❤️ 🔥 ⭐ 😎 👾 😂 💩 🪐 🔭 …) or `:shortcodes:` (`:heart:`, `:fire:`, `:invader:`, `:joy:`/`:lol:`, `:poop:`, `:planet:`, `:telescope:` …). They're 7×7 colour sprites defined in `go/matrix/emoji.go`; add your own there. Unsupported emoji show as `?`. Curly quotes, dashes and `…` (which phones type automatically) are drawn as their plain ASCII forms, so `don’t` shows as `don't`.
+
+Inline colours: a colour name or hex code between colons changes the colour of the text after it, so `:pink:Hello :#00ff80:world` is pink then green. Names are those `color` accepts (`red`, `green`, `blue`, `yellow`, `cyan`, `magenta`, `orange`, `purple`, `pink`, `white`, `black`); hex needs the `#` (`:#f80:` works too), so words like `:add:` stay text. `:default:` goes back to the text's `color`. A colour carries on into the next lines until another code changes it. Emoji and sprites keep their own colours.
+
+```bash
+curl -d ':pink:I :red::heart::default: :cyan:GO' -H 'Content-Type: text/plain' localhost:8080/api/text
+```
 
 **State is saved.** After every change, `matrixd` writes what the panel shows (text, prayer clock, planet, rotation, game or image) and the brightness to `~/.config/matrixd/state.json`, and restores it on the next start. Passing `-text`, `-prayer` or `-rotate` overrides the saved state for that start; `-state other.json` uses a different file and `-state ''` turns saving off.
 
@@ -302,6 +308,21 @@ sudo ./matrixd -port pi -addr :8080
 `matrix-pi` defaults to one 64x32 FM6126A panel, the `regular` GPIO mapping and GPIO slowdown 2 for a Pi 3B+. Options accepted by `rpi-rgb-led-matrix` can be passed to the bridge directly for hardware diagnosis. The HTTP API is unchanged, so web, desktop and mobile clients do not need hardware-specific code.
 
 Do not run other software that uses these GPIO pins at the same time. For reliable refresh, disable onboard audio and keep the Pi out of heavy thermal throttling as recommended by `rpi-rgb-led-matrix`.
+
+#### Automatic updates from GitHub
+
+`pi/matrixd-update.sh` keeps the Pi on the latest `main`. Every 15 minutes (and 2 minutes after boot) it fetches `https://github.com/rbrick/dotmatrix-vibes`; when `main` has a new commit it builds `matrixd` and `matrix-pi` on the Pi, installs them, restarts `matrixd`, and puts the previous binaries back if the new build doesn't come up. It records the commit it installed in `/var/lib/matrixd-update/installed-commit` and does nothing while that matches `main`. After a successful update it also installs any changed `matrixd.service`, updater script or timer from the repo. It needs Go 1.25+ in `/usr/local/go` and `rpi-rgb-led-matrix` in `/opt/rpi-rgb-led-matrix`.
+
+```bash
+sudo install -m 0755 pi/matrixd-update.sh /usr/local/bin/matrixd-update
+sudo install -m 0644 pi/matrixd-update.service pi/matrixd-update.timer /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now matrixd-update.timer
+journalctl -u matrixd-update            # what it did
+sudo systemctl start matrixd-update     # check for an update now
+```
+
+Build `matrix-pi` on the Pi itself (as above, or let the updater do it): a binary cross-built on an Apple Silicon Mac crashed with "Illegal instruction" on a Pi 3B+.
+
 
 ### Wire protocol
 

@@ -1,6 +1,7 @@
 package matrix
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 	"testing"
@@ -39,15 +40,121 @@ func TestTextLayout(t *testing.T) {
 
 func TestScrollWrapsAround(t *testing.T) {
 	text := Text{Text: "a message much wider than sixty-four pixels"}.WithDefaults()
-	if !text.scrolls() {
+	w := TextWidth(text.Text)
+	if !text.scrolls(w) {
 		t.Fatal("long text should scroll in auto mode")
 	}
-	period := time.Duration(Width+text.width()) * text.step()
+	period := time.Duration(Width+w) * text.step()
 	a, b := NewCanvas(), NewCanvas()
 	text.Render(a, time.Second)
 	text.Render(b, time.Second+period)
 	if *a != *b {
 		t.Error("scroll position should repeat after one full period")
+	}
+}
+
+// litColumns returns the x of every lit pixel in rows [y0, y1).
+func litColumns(c *Canvas, y0, y1 int) map[int]bool {
+	xs := map[int]bool{}
+	for y := y0; y < y1; y++ {
+		for x := 0; x < Width; x++ {
+			if c.Pix[y][x] != (color.RGBA{0, 0, 0, 255}) {
+				xs[x] = true
+			}
+		}
+	}
+	return xs
+}
+
+func TestEachLineScrollsOnItsOwn(t *testing.T) {
+	text := Text{Text: "HI\na message much wider than sixty-four pixels"}.WithDefaults()
+	a, b := NewCanvas(), NewCanvas()
+	text.Render(a, 0)
+	next := text.Render(b, 2*time.Second)
+	if next < 0 {
+		t.Fatal("text with a long line should keep animating")
+	}
+	// Lines are 7 px tall with a 1 px gap, centred: rows 8..15 and 16..23.
+	top := (Height - 15) / 2
+	if fmt.Sprint(litColumns(a, top, top+7)) != fmt.Sprint(litColumns(b, top, top+7)) {
+		t.Error("the short line should stay centred while the long one scrolls")
+	}
+	if fmt.Sprint(litColumns(a, top+8, top+15)) == fmt.Sprint(litColumns(b, top+8, top+15)) {
+		t.Error("the long line should scroll")
+	}
+	if x := litColumns(a, top, top+7); !x[(Width-TextWidth("HI"))/2] {
+		t.Error("short line not centred")
+	}
+}
+
+func TestScrollAlwaysMovesEveryLine(t *testing.T) {
+	text := Text{Text: "A\nBBBBBB", Scroll: ScrollAlways}.WithDefaults()
+	a, b := NewCanvas(), NewCanvas()
+	text.Render(a, 0)
+	text.Render(b, time.Second)
+	top := (Height - 15) / 2
+	for _, y := range []int{top, top + 8} {
+		if fmt.Sprint(litColumns(a, y, y+7)) == fmt.Sprint(litColumns(b, y, y+7)) {
+			t.Errorf("line at y=%d should scroll", y)
+		}
+	}
+}
+
+func TestInlineColours(t *testing.T) {
+	pink := namedColors["pink"]
+	green := color.RGBA{0, 255, 0, 255}
+	colours := func(s string) []color.Color {
+		cs, _ := cellsFrom(s, nil, nil)
+		var out []color.Color
+		for _, c := range cs {
+			out = append(out, c.col)
+		}
+		return out
+	}
+	got := colours(":pink:AB:#0f0:C:default:D")
+	want := []color.Color{pink, pink, green, nil}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("colours = %v, want %v", got, want)
+	}
+	// Codes take no space; hex needs '#', so :add: stays text.
+	if TextWidth(":pink:test") != TextWidth("test") {
+		t.Error("colour code should take no width")
+	}
+	if TextWidth(":add:") != TextWidth("add")+2*(TextWidth(":")+1) {
+		t.Error(":add: should be drawn as text")
+	}
+	// Image shortcodes are offered colour names first, so images win clashes.
+	var seen []string
+	ScanShortcodes(":pink:hi :pikachu:", func(name string) bool { seen = append(seen, name); return false })
+	if fmt.Sprint(seen) != "[pink pikachu]" {
+		t.Errorf("scanner offered %v", seen)
+	}
+
+	// Drawn: the colour applies to glyphs and carries on to the next line.
+	c := NewCanvas()
+	Text{Text: ":pink:I\nI:default:", Color: color.White, Align: AlignLeft}.Render(c, 0)
+	top := (Height - 15) / 2
+	for _, y := range []int{top, top + 8} {
+		if got := c.Pix[y][2]; got != pink {
+			t.Errorf("line at y=%d drawn in %v, want pink", y, got)
+		}
+	}
+}
+
+func TestTypographicPunctuation(t *testing.T) {
+	for in, want := range map[string]string{
+		"don’t": "don't",
+		"“Hi”":  `"Hi"`,
+		"a—b–c": "a-b-c",
+		"wait…": "wait...",
+		"12 pm": "12 pm",
+	} {
+		a, b := NewCanvas(), NewCanvas()
+		a.DrawText(0, 0, in, color.White)
+		b.DrawText(0, 0, want, color.White)
+		if *a != *b || TextWidth(in) != TextWidth(want) {
+			t.Errorf("%q should draw like %q", in, want)
+		}
 	}
 }
 

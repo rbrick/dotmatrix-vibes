@@ -66,19 +66,32 @@ func (t Text) lines() []string {
 	return lines
 }
 
-func (t Text) width() int {
-	w := 0
+// textLine is one laid-out line of a Text.
+type textLine struct {
+	cells         []cell
+	width, height int
+}
+
+// layout splits the text into lines. An inline colour code carries on into
+// the following lines until another one changes it.
+func (t Text) layout() []textLine {
+	var col color.Color
+	var out []textLine
 	for _, l := range t.lines() {
-		w = max(w, TextWidthImages(l, t.Images))
+		var cs []cell
+		cs, col = cellsFrom(l, t.Images, col)
+		out = append(out, textLine{cs, cellsWidth(cs), lineHeight(cs)})
 	}
-	return w
+	return out
 }
 
 // step is how long the text takes to scroll one pixel.
 func (t Text) step() time.Duration { return time.Duration(float64(time.Second) / t.Speed) }
 
-func (t Text) scrolls() bool {
-	return t.Scroll == ScrollAlways || (t.Scroll == ScrollAuto && t.width() > Width)
+// scrolls reports whether a line of the given width scrolls. Each line is
+// decided on its own: with ScrollAuto only lines too wide for the panel move.
+func (t Text) scrolls(width int) bool {
+	return t.Scroll == ScrollAlways || (t.Scroll == ScrollAuto && width > Width)
 }
 
 // Render draws the text as it appears elapsed time after it was first shown
@@ -86,36 +99,32 @@ func (t Text) scrolls() bool {
 func (t Text) Render(c *Canvas, elapsed time.Duration) time.Duration {
 	t = t.WithDefaults()
 	c.Fill(t.Background)
-	lines := t.lines()
-	heights, total := make([]int, len(lines)), -1
-	for i, l := range lines {
-		heights[i] = TextHeight(l, t.Images)
-		total += heights[i] + 1
+	lines := t.layout()
+	total := -1
+	for _, l := range lines {
+		total += l.height + 1
 	}
 	y := (Height - total) / 2
-	block := t.width()
-	scrollX := 0
-	if t.scrolls() {
-		// Enter from the right edge, leave completely on the left, repeat.
-		travel := Width + block
-		scrollX = Width - int(elapsed/t.step())%travel
-	}
-	for i, line := range lines {
-		x := scrollX
-		if !t.scrolls() {
-			switch w := TextWidthImages(line, t.Images); t.Align {
-			case AlignLeft:
-				x = 0
-			case AlignRight:
-				x = Width - w
-			default:
-				x = (Width - w) / 2
-			}
+	moving := false
+	for _, l := range lines {
+		var x int
+		switch {
+		case t.scrolls(l.width):
+			// Each line enters from the right edge, leaves completely on the
+			// left and repeats, looping at its own length.
+			moving = true
+			x = Width - int(elapsed/t.step())%(Width+l.width)
+		case t.Align == AlignLeft:
+			x = 0
+		case t.Align == AlignRight:
+			x = Width - l.width
+		default:
+			x = (Width - l.width) / 2
 		}
-		c.DrawTextImages(x, y, line, t.Color, t.Images)
-		y += heights[i] + 1
+		c.drawCells(x, y, l.cells, t.Color)
+		y += l.height + 1
 	}
-	if !t.scrolls() {
+	if !moving {
 		return -1
 	}
 	// Next frame exactly when the text has moved one more pixel, so every

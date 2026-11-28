@@ -69,7 +69,11 @@ func (c *Canvas) DrawText(x, y int, s string, col color.Color) int {
 // is TextHeight tall with (x, y) its top-left corner; letters and images are
 // centred vertically within it.
 func (c *Canvas) DrawTextImages(x, y int, s string, col color.Color, images Images) int {
-	cs := cells(s, images)
+	return c.drawCells(x, y, cells(s, images), col)
+}
+
+// drawCells draws one line of cells; glyphs without an inline colour use col.
+func (c *Canvas) drawCells(x, y int, cs []cell, col color.Color) int {
 	h := lineHeight(cs)
 	for _, cl := range cs {
 		top := y + (h-cl.height())/2
@@ -79,10 +83,14 @@ func (c *Canvas) DrawTextImages(x, y int, s string, col color.Color, images Imag
 		case cl.img != nil:
 			c.blend(x, top, cl.img)
 		default:
+			gc := col
+			if cl.col != nil {
+				gc = cl.col
+			}
 			for gx := 0; gx < cl.width; gx++ {
 				for gy := 0; gy < glyphHeight; gy++ {
 					if cl.glyph[cl.first+gx]>>gy&1 != 0 {
-						c.Set(x+gx, top+gy, col)
+						c.Set(x+gx, top+gy, gc)
 					}
 				}
 			}
@@ -145,9 +153,11 @@ func (c *Canvas) DrawImage(img image.Image) {
 func TextWidth(s string) int { return TextWidthImages(s, nil) }
 
 // TextWidthImages is TextWidth with pictures for extra :shortcodes:.
-func TextWidthImages(s string, images Images) int {
+func TextWidthImages(s string, images Images) int { return cellsWidth(cells(s, images)) }
+
+func cellsWidth(cs []cell) int {
 	w := 0
-	for _, cl := range cells(s, images) {
+	for _, cl := range cs {
 		w += cl.advance()
 	}
 	return max(w-1, 0)

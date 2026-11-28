@@ -366,7 +366,8 @@ func isEmojiModifier(r rune) bool {
 // cell is one drawable item of text: a font glyph, an emoji or an image.
 type cell struct {
 	glyph        *[glyphWidth]byte
-	first, width int // the glyph columns to draw
+	first, width int         // the glyph columns to draw
+	col          color.Color // a glyph's inline colour; nil draws it in the text's colour
 	emoji        *emoji
 	img          image.Image
 }
@@ -405,7 +406,7 @@ func IsEmojiShortcode(name string) bool {
 // Images map with exactly those names.
 func ScanShortcodes(s string, resolve func(name string) bool) {
 	for len(s) > 0 {
-		if name, rest, ok := shortcodeAt(s); ok && (IsEmojiShortcode(name) || resolve(name)) {
+		if name, rest, ok := shortcodeAt(s); ok && (IsEmojiShortcode(name) || resolve(name) || isColorCode(name)) {
 			s = rest
 			continue
 		}
@@ -424,6 +425,18 @@ func shortcodeAt(s string) (name, rest string, ok bool) {
 		return "", s, false // shortcodes never contain spaces: "12:30 :heart:"
 	}
 	return s[1 : 1+end], s[end+2:], true
+}
+
+// typographic maps punctuation that phones and word processors substitute
+// automatically (curly quotes, dashes, ellipses) to the ASCII the font has,
+// so "don’t" doesn't come out as "don?t".
+var typographic = map[rune]string{
+	'\u2018': "'", '\u2019': "'", '\u201a': "'", '\u201b': "'", '\u2032': "'", // ‘ ’ ‚ ‛ ′
+	'\u201c': `"`, '\u201d': `"`, '\u201e': `"`, '\u201f': `"`, '\u2033': `"`, // “ ” „ ‟ ″
+	'\u00ab': `"`, '\u00bb': `"`, // « »
+	'\u2010': "-", '\u2011': "-", '\u2012': "-", '\u2013': "-", '\u2014': "-", '\u2212': "-", // ‐ ‑ ‒ – — −
+	'\u2026': "...",                             // …
+	'\u00a0': " ", '\u202f': " ", '\u2009': " ", // no-break and thin spaces
 }
 
 // narrowGlyphs are drawn without their blank side columns, so that "12:59:59"
@@ -445,9 +458,43 @@ func glyphCell(r rune) cell {
 	return cell{glyph: g, first: first, width: last - first + 1}
 }
 
+// colorCode reads an inline colour code: :pink: or another colour name,
+// :#ff8000: or :#f80:, or :default: for the text's own colour (nil). Hex codes
+// need the '#' so that words like :add: or :bed: stay text.
+func colorCode(name string) (col color.Color, ok bool) {
+	name = strings.ToLower(name)
+	if name == "default" {
+		return nil, true
+	}
+	if c, ok := namedColors[name]; ok {
+		return c, true
+	}
+	if strings.HasPrefix(name, "#") {
+		if c, err := ParseColor(name); err == nil {
+			return c, true
+		}
+	}
+	return nil, false
+}
+
+func isColorCode(name string) bool {
+	_, ok := colorCode(name)
+	return ok
+}
+
 // cells splits text into drawable items, turning emoji characters and known
 // :shortcodes: into sprites or images.
 func cells(s string, images Images) []cell {
+	out, _ := cellsFrom(s, images, nil)
+	return out
+}
+
+// cellsFrom is cells with inline colour codes: glyphs start in col (nil for
+// the text's colour), each :colour: code changes it for the glyphs after it,
+// and the colour in effect at the end is returned so the next line can carry
+// it on. Emoji and images keep their own colours. Built-in emoji and images
+// win over colour names that clash with them.
+func cellsFrom(s string, images Images, col color.Color) ([]cell, color.Color) {
 	var out []cell
 	for len(s) > 0 {
 		if name, rest, ok := shortcodeAt(s); ok {
@@ -461,6 +508,11 @@ func cells(s string, images Images) []cell {
 				s = rest
 				continue
 			}
+			if c, ok := colorCode(name); ok {
+				col = c
+				s = rest
+				continue
+			}
 		}
 		r, size := utf8.DecodeRuneInString(s)
 		s = s[size:]
@@ -469,10 +521,18 @@ func cells(s string, images Images) []cell {
 			out = append(out, cell{emoji: e})
 		case isEmojiModifier(r):
 		default:
-			out = append(out, glyphCell(r))
+			plain, ok := typographic[r]
+			if !ok {
+				plain = string(r)
+			}
+			for _, r := range plain {
+				g := glyphCell(r)
+				g.col = col
+				out = append(out, g)
+			}
 		}
 	}
-	return out
+	return out, col
 }
 
 func (e *emoji) pixels() [][]string {
