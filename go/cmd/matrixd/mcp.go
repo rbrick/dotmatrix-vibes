@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"dotmatrix/matrix"
+	"dotmatrix/paintanim"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -59,8 +60,9 @@ type drawOp struct {
 }
 
 type drawInput struct {
-	Base string   `json:"base,omitempty" jsonschema:"current (default): draw on top of what the panel shows; blank: start from black"`
-	Ops  []drawOp `json:"ops" jsonschema:"operations, applied in order"`
+	Base    string   `json:"base,omitempty" jsonschema:"current (default): draw on top of what the panel shows; blank: start from black"`
+	Ops     []drawOp `json:"ops" jsonschema:"operations, applied in order"`
+	Animate float64  `json:"animate,omitempty" jsonschema:"if set (1-600 seconds), the panel shows the finished picture being painted over this many seconds: toned ground, big brushstrokes, then finer ones"`
 }
 
 type viewInput struct{}
@@ -120,6 +122,7 @@ func newMCPHandler(player *matrix.Player, persist func()) http.Handler {
 		Description: "Draw on the LED panel and show the result. Operations run in order on a 64×32 canvas that starts as what the panel shows (or black with base \"blank\"); off-panel pixels are clipped. " +
 			"Operations: pixel {x,y,color,points}; line {x,y,x2,y2,color}; rect {x,y,w,h,color,filled}; circle {x,y,r,color,filled}; fill {x,y,color} (flood-fills the area of the seed pixel's colour); " +
 			"text {x,y,text,color,font}; sprite {x,y,rows,palette} (pixel art, e.g. rows [\".rr.\",\"rrrr\"] with palette {\"r\":\"red\"}); clear {color}. " +
+			"With animate (seconds), the panel shows the result being painted, from a toned ground and big brushstrokes down to fine detail. " +
 			"Returns a picture of the panel afterwards.",
 		Annotations: &mcp.ToolAnnotations{IdempotentHint: false, DestructiveHint: ptr(true)},
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in drawInput) (*mcp.CallToolResult, any, error) {
@@ -138,6 +141,14 @@ func newMCPHandler(player *matrix.Player, persist func()) http.Handler {
 			if err := applyOp(c, op); err != nil {
 				return nil, nil, fmt.Errorf("ops[%d] (%s): %w", i, op.Op, err)
 			}
+		}
+		if in.Animate != 0 {
+			if in.Animate < 1 || in.Animate > 600 {
+				return nil, nil, fmt.Errorf("animate must be between 1 and 600 seconds")
+			}
+			player.Show(paintanim.New(c, paintanim.Options{Seconds: in.Animate}))
+			persist()
+			return panelResult(c, fmt.Sprintf("Drew %d operation(s); the panel is painting this picture over %g seconds.", len(in.Ops), in.Animate))
 		}
 		player.Show(matrix.Still{Canvas: c})
 		persist()

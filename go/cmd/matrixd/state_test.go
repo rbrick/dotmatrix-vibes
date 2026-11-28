@@ -24,6 +24,7 @@ import (
 	"dotmatrix/moonphase"
 	"dotmatrix/neotokyo"
 	"dotmatrix/orrery"
+	"dotmatrix/paintanim"
 	"dotmatrix/planets"
 	"dotmatrix/pokemon"
 	"dotmatrix/prayerclock"
@@ -106,6 +107,11 @@ func TestStateRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			p.Show(r)
+		},
+		"painting": func(p *matrix.Player) {
+			c := matrix.NewCanvas()
+			c.Set(3, 4, color.RGBA{255, 0, 0, 255})
+			p.Show(paintanim.New(c, paintanim.Options{Seconds: 12, Loop: true}))
 		},
 		"connect4": func(p *matrix.Player) {
 			g := connect4.New(connect4.Options{})

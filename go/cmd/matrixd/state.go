@@ -13,17 +13,19 @@ import (
 
 	"dotmatrix/connect4"
 	"dotmatrix/matrix"
+	"dotmatrix/paintanim"
 )
 
 // content is what matrixd remembers across restarts: what the panel shows
 // and how bright it is. It is saved as JSON after every change and is also
 // part of the /api/state response.
 type content struct {
-	Brightness uint8            `json:"brightness,omitempty"`
-	sceneSpec                   // Mode is also "connect4", "rotation" or "image"
-	Connect4   *connect4.State  `json:"connect4,omitempty"`
-	Rotation   *rotationRequest `json:"rotation,omitempty"`
-	Image      []byte           `json:"image,omitempty"` // PNG; state file only
+	Brightness uint8             `json:"brightness,omitempty"`
+	sceneSpec                    // Mode is also "connect4", "rotation", "image" or "painting"
+	Connect4   *connect4.State   `json:"connect4,omitempty"`
+	Rotation   *rotationRequest  `json:"rotation,omitempty"`
+	Painting   *paintingSettings `json:"painting,omitempty"`
+	Image      []byte            `json:"image,omitempty"` // PNG (an image, or a painting's picture); state file only
 }
 
 // snapshot captures the Player's current content.
@@ -42,6 +44,8 @@ func snapshot(p *matrix.Player) content {
 	case *rotation:
 		c.Mode = "rotation"
 		c.Rotation = &sc.req
+	case *paintanim.Scene:
+		paintingContent(&c, sc)
 	case matrix.Still:
 		c.Mode = "image"
 		var buf bytes.Buffer
@@ -74,6 +78,12 @@ func (c content) apply(p *matrix.Player, attach func(*connect4.Game)) error {
 			return err
 		}
 		p.Show(r)
+	case "painting":
+		sc, err := c.paintingScene()
+		if err != nil {
+			return err
+		}
+		p.Show(sc)
 	case "image":
 		img, err := png.Decode(bytes.NewReader(c.Image))
 		if err != nil {

@@ -5,6 +5,10 @@
 //	                       "align":"center","scroll":"auto","speed":24}
 //	                      or a text/plain body containing just the text
 //	POST /api/image       PNG, JPEG or GIF body; scaled down to fit
+//	POST /api/paint       {"seconds":30,"loop":false,"image":"<base64 PNG/JPEG/GIF>"}
+//	                      shows a picture being painted, from a toned ground and
+//	                      big brushstrokes down to fine detail; without "image"
+//	                      it paints what the panel shows now
 //	POST /api/brightness  {"brightness":0-255}
 //	POST /api/clear
 //	GET  /api/state
@@ -434,6 +438,7 @@ func main() {
 		writeState(w, player)
 	})
 	registerMCP(mux, player, persist)
+	handlePaint(mux, player, persist)
 	mux.HandleFunc("GET /api/emoji", func(w http.ResponseWriter, r *http.Request) {
 		type item struct {
 			Name   string     `json:"name"`

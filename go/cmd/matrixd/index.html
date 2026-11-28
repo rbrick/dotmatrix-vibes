@@ -119,8 +119,10 @@
     <div class="buttons">
       <input type="text" id="scname" maxlength="40" placeholder="Name" aria-label="Scene name" autocomplete="off">
       <button type="submit">Save what's showing</button>
+      <button type="button" id="paintit" title="Repaint what the panel shows, from a toned ground and big brushstrokes down to fine detail">🖌 Watch it painted</button>
+      <label class="secs" title="How long the painting takes">in <input type="number" id="paintsecs" min="1" max="600" step="1" value="30" aria-label="Painting time in seconds"> s</label>
     </div>
-    <p class="hint" style="margin:0">Saves whatever is on the panel now (text, a planet, a rotation…) to show again later. Saving with an existing name replaces it.</p>
+    <p class="hint" style="margin:0">Saves whatever is on the panel now (text, a planet, a rotation…) to show again later. Saving with an existing name replaces it. <b>Watch it painted</b> repaints what's showing, brushstroke by brushstroke; save that to replay it later.</p>
   </form>
 
   <h2>Paint</h2>
@@ -641,6 +643,7 @@ $("wf").addEventListener("submit", e => {
   call("/api/weather", { ...loc, refresh: Number($("wrefresh").value), preview: $("wpreview").value, weatherPreview: $("wconditions").value });
 });
 $("clear").addEventListener("click", () => call("/api/clear", {}));
+$("paintit").addEventListener("click", () => call("/api/paint", { seconds: Number($("paintsecs").value) || 30 }));
 $("brightness").addEventListener("change", () => call("/api/brightness", { brightness: Number($("brightness").value) }));
 
 function insertAtCursor(str) {
@@ -1166,7 +1169,7 @@ function loadSpec(s) {
 // --- Saved scenes ---
 const modeNames = { text: "text", weather: "weather", prayer: "prayer times", planet: "planet", pokemon: "Pokémon", moon: "moon phase",
   solarsystem: "solar system", minecraft: "Minecraft", starfront: "Starfront", bytes: "$BYTES", citizen: "Citizen",
-  fractal: "fractals", aurora: "northern lights", aquarium: "aquarium", rotation: "rotation", image: "image" };
+  fractal: "fractals", aurora: "northern lights", aquarium: "aquarium", rotation: "rotation", image: "image", painting: "painting" };
 function drawScenes(list) {
   if (!list) return;
   const box = $("scenes");

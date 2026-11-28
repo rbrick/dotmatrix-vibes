@@ -7,6 +7,7 @@
 //	paintpanel -in mona.jpg -top 0.095 -preview p.png -n   # just preview
 //	paintpanel -in mona.jpg -top 0.095 -save "Mona Lisa"     # show and save as a scene
 //	paintpanel -in 'https://commons.wikimedia.org/wiki/Special:FilePath/Mona_Lisa.jpg?width=1200' -fit
+//	paintpanel -in wave.jpg -top 0.08 -animate 40               # watch it being painted
 //
 // -top and -left are where the crop starts, as fractions of the picture's
 // height and width, and -w is the crop's width as a fraction of the
@@ -55,6 +56,7 @@ func main() {
 	dryRun := flag.Bool("n", false, "don't send to the panel")
 	server := flag.String("server", "http://dotmatrix.local:8080", "matrixd address")
 	save := flag.String("save", "", "also save the picture as a scene with this name")
+	animate := flag.Float64("animate", 0, "show the picture being painted over this many seconds (1-600)")
 	flag.Parse()
 	if *in == "" {
 		flag.Usage()
@@ -81,7 +83,14 @@ func main() {
 	if err := png.Encode(&buf, c); err != nil {
 		log.Fatal(err)
 	}
-	if err := post(*server+"/api/image", "image/png", &buf); err != nil {
+	if *animate > 0 {
+		// matrixd paints it on the panel: ground, block-in, then detail.
+		body, _ := json.Marshal(map[string]any{"seconds": *animate, "image": buf.Bytes()})
+		err = post(*server+"/api/paint", "application/json", bytes.NewReader(body))
+	} else {
+		err = post(*server+"/api/image", "image/png", &buf)
+	}
+	if err != nil {
 		log.Fatal(err)
 	}
 	if *save != "" {

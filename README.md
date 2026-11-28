@@ -83,6 +83,15 @@ go run ./cmd/paintpanel -in pearl.jpg -top 0.19 -save "Girl with a Pearl Earring
 
 Dark paintings often want `-gamma` below the default 0.8 and busy ones more `-sat`. Crops that worked: Mona Lisa `-top 0.095 -gamma 0.72 -sat 1.25`, The Starry Night `-gamma 0.72 -sat 1.4`, The Kiss `-w 0.62 -left 0.2 -sat 1.5`, Girl with a Pearl Earring `-top 0.19`.
 
+**Watch it being painted.** `POST /api/paint` shows a picture being painted, the way a painter works: a toned ground washed across the canvas, a loose block-in of the big colour masses with a large brush (darks before lights), smaller brushes refining what's still off, then single-pixel touches that end exactly on the picture. Strokes follow the forms (across the brightness gradient), after Hertzmann's painterly rendering. The control page's **🖌 Watch it painted** (under Saved scenes) repaints whatever is showing; save it as a scene to replay it. `paintpanel -animate 40` paints a picture over 40 seconds, and the MCP `draw` tool takes `"animate": 40`. The code is `go/paintanim`.
+
+```bash
+curl -d '{"seconds":40}' localhost:8080/api/paint                       # repaint what's showing
+curl -d '{"seconds":40,"loop":true,"image":"'$(base64 < pic.png)'"}' localhost:8080/api/paint
+```
+
+`loop` paints again with new strokes after showing the finished picture for 20 seconds. A painting is saved like any other display, and showing it again (or restarting matrixd) paints it from the start.
+
 `/api/text` fields: `text` (up to 4 lines, `\n`-separated), `color`/`background` (`#rrggbb` or a name like `red`), `align` (`left`/`center`/`right`), `scroll` (`auto` scrolls only the lines too wide for the panel, `always` scrolls every line, `never`), `speed` (px/s). Each line scrolls on its own, looping at its own length, so a short heading stays put above a long scrolling message.
 
 Emoji: text can contain emoji characters (❤️ 🔥 ⭐ 😎 👾 😂 💩 🪐 🔭 …) or `:shortcodes:` (`:heart:`, `:fire:`, `:invader:`, `:joy:`/`:lol:`, `:poop:`, `:planet:`, `:telescope:` …). They're 7×7 colour sprites defined in `go/matrix/emoji.go`; add your own there. Unsupported emoji show as `?`. Curly quotes, dashes and `…` (which phones type automatically) are drawn as their plain ASCII forms, so `don’t` shows as `don't`.
