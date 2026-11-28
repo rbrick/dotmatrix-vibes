@@ -73,6 +73,16 @@ claude mcp add --transport http dotmatrix http://dotmatrix.local:8080/mcp
 
 Tools: `view_panel` returns a picture of what the panel shows (each LED an 8×8 block, grid lines every 8 LEDs); `draw` runs a list of operations (`pixel`, `line`, `rect`, `circle`, `fill`, `text`, `sprite`, `clear`) on what the panel shows, or on black with `"base":"blank"`, then shows the result and returns a picture of it; `read_pixels` returns a region's exact colours as palette rows, the same format `sprite` takes. Like Paint, drawing replaces the panel's content with a still picture that's saved like any other. There's no authentication, the same as the rest of the API, so only expose `matrixd` on a network you trust.
 
+**Paintings and photos.** `go/cmd/paintpanel` turns a picture into a panel picture: it crops it to the panel's 2:1 shape (or, with `-fit`, shows the whole picture and continues its edges to fill the sides), averages the pixels behind each LED, and lifts dark tones that the LEDs would show as black. `-preview` saves what the LEDs will show, so try crops with `-n` (don't send) first. `-top`/`-left` are where the crop starts as fractions of the picture's height/width, and `-w` is its width as a fraction of the picture's width. `-in` also takes an http(s) URL, such as a Wikimedia Commons `Special:FilePath/…?width=1200` link.
+
+```bash
+cd go
+go run ./cmd/paintpanel -in pearl.jpg -top 0.19 -n -preview p.png      # check the crop
+go run ./cmd/paintpanel -in pearl.jpg -top 0.19 -save "Girl with a Pearl Earring"
+```
+
+Dark paintings often want `-gamma` below the default 0.8 and busy ones more `-sat`. Crops that worked: Mona Lisa `-top 0.095 -gamma 0.72 -sat 1.25`, The Starry Night `-gamma 0.72 -sat 1.4`, The Kiss `-w 0.62 -left 0.2 -sat 1.5`, Girl with a Pearl Earring `-top 0.19`.
+
 `/api/text` fields: `text` (up to 4 lines, `\n`-separated), `color`/`background` (`#rrggbb` or a name like `red`), `align` (`left`/`center`/`right`), `scroll` (`auto` scrolls only the lines too wide for the panel, `always` scrolls every line, `never`), `speed` (px/s). Each line scrolls on its own, looping at its own length, so a short heading stays put above a long scrolling message.
 
 Emoji: text can contain emoji characters (❤️ 🔥 ⭐ 😎 👾 😂 💩 🪐 🔭 …) or `:shortcodes:` (`:heart:`, `:fire:`, `:invader:`, `:joy:`/`:lol:`, `:poop:`, `:planet:`, `:telescope:` …). They're 7×7 colour sprites defined in `go/matrix/emoji.go`; add your own there. Unsupported emoji show as `?`. Curly quotes, dashes and `…` (which phones type automatically) are drawn as their plain ASCII forms, so `don’t` shows as `don't`.
